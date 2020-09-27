@@ -1,6 +1,6 @@
 public enum HTTPMethod {
-    GET ("GET"),
-    POST ("POST");
+    GET("GET"),
+    POST("POST");
 
     String value;
 
