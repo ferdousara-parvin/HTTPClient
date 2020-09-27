@@ -54,7 +54,7 @@ public class HTTPClient {
             String line = in.readLine();
             while(line != null)
             {
-                System.out.println( line );
+                System.out.println(line);
                 line = in.readLine();
             }
 
@@ -67,9 +67,4 @@ public class HTTPClient {
             e.printStackTrace();
         }
     }
-
-    private void openConnection(){
-//        Server
-    }
-
 }
