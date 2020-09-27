@@ -1,8 +1,10 @@
 public enum HTTPMethod {
-    get("GET "), post("POST ");
+    GET ("GET"),
+    POST ("POST");
+
     String value;
 
     HTTPMethod(String method) {
-        value = method;
+        this.value = method;
     }
 }
