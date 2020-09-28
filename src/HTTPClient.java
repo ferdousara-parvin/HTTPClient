@@ -91,6 +91,7 @@ public class HTTPClient {
                                     currentIndex++;
                                     header.append(args[currentIndex]);
                                 }
+                                headers.add(header);
                             }
                             else
                                 headers.add(args[currentIndex]);
@@ -106,7 +107,6 @@ public class HTTPClient {
                                     currentIndex++;
                                     dataSB.append(args[currentIndex]);
                                 }
-
                                 data = dataSB.toString();
                             }
                             else
