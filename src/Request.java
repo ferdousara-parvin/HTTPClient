@@ -2,12 +2,13 @@ import java.io.PrintStream;
 import java.util.List;
 
 public class Request {
-    private String host;
+    private String host = "";
     private String path;
     private HTTPMethod method;
     private List<String> headers;
     private int port;
     private String data;
+
     private static final int webContentPort = 80;
     private static final String httpVersion = "HTTP/1.0";
     private static final String eol = "\r\n";
@@ -23,6 +24,7 @@ public class Request {
 
     public void postRequest(PrintStream out) {
         out.print("POST " + this.path + " " + httpVersion + eol);
+        out.print("Host: " + this.host + eol);
         out.print("Content-Length: " + this.data.length() + eol);
         for (String header: this.headers) {
             out.print(header + eol);
@@ -34,6 +36,7 @@ public class Request {
 
     public void getRequest(PrintStream out) {
         out.print("GET " + this.path + " " + httpVersion + eol);
+        out.print("Host: " + this.host + eol);
         for (String header: this.headers) {
             out.print(header + eol);
         }
@@ -50,6 +53,30 @@ public class Request {
 
     public HTTPMethod getMethod() {
         return method;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public void setMethod(HTTPMethod method) {
+        this.method = method;
+    }
+
+    public void setHeaders(List<String> headers) {
+        this.headers = headers;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public void setData(String data) {
+        this.data = data;
     }
 
 }
