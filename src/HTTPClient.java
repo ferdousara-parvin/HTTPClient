@@ -2,7 +2,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.MalformedURLException;
 import java.net.Socket;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class HTTPClient {
@@ -10,41 +13,94 @@ public class HTTPClient {
     private PrintStream out;
     private BufferedReader in;
     private Socket clientSocket;
+    private static Boolean isVerbose = false;
 
     public static void main(String[] args) {
-//        parseRequest(args);
+        String method = "get";
+        String urlString = "http://httpbin.org/get?author=The+Geeky+Asian&course=GET+Request+Using+Sockets+in+Java";
+//        args = new String[]{"httpc", method, urlString};
+//        args = new String[]{"httpc", "help", "you"};
+
+
+//        parseArgs(args);
+
+        try {
+            URL url = new URL(urlString);
+            String host = url.getHost();
+            String path = url.getPath();
+            String param = url.getQuery();
+            System.out.println(host + "->" + path);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
 
         // Testing purposes
         Request request = new Request("www.google.com",
                 "/search?sxsrf=ALeKk02K4A2OBcJYap3QKIQrqpU5MClZaw%3A1601219232074&source=hp&ei=oKpwX83_AYW3gger4rXIDA&q=cats&oq=cats&gs_lcp=CgZwc3ktYWIQAzIKCC4QsQMQQxCTAjICCAAyBQgAELEDMgUILhCxAzICCC4yBQguELEDMgUILhCxAzIICC4QsQMQgwEyCAgAELEDEIMBMggILhCxAxCDAToECCMQJzoFCAAQkQI6CwguELEDEMcBEKMCOg4ILhCxAxCDARDHARCjAjoHCC4QsQMQQzoECAAQQzoICC4QxwEQowJQjwNYxwVgigdoAHAAeAGAAcIBiAGFBJIBAzAuNJgBAKABAaoBB2d3cy13aXo&sclient=psy-ab&ved=0ahUKEwjNz6G8zonsAhWFm-AKHStxDckQ4dUDCAg&uact=5",
                 HTTPMethod.GET,
-                new HashMap<String, String>());
+                null);
         new HTTPClient(request);
 
     }
 
-    public static void parseRequest(String[] args) {
+    public static void parseArgs(String[] args) {
+
+        if (args.length > 1 && args[1].equalsIgnoreCase("help")) { // Help messages
+            if (args.length == 2) {
+                // httpc help
+                System.out.print(HelpMessage.GENERAL.getMessage());
+            } else {
+                // httpc help (get|post)
+                switch (args[2]) {
+                    case "get":
+                        System.out.print(HelpMessage.GET.getMessage());
+                        break;
+                    case "post":
+                        System.out.print(HelpMessage.POST.getMessage());
+                        break;
+                    default:
+                        // The person is lost!
+                        System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
+                }
+            }
+            System.exit(0);
+        }
+
         // Verify validity of command
-        if (args.length < 2) {
-            System.out.println("Missing some parameters");
+        if (args.length <= 2) {
+            System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
             System.exit(0);
         }
 
-        if(args[1].equalsIgnoreCase("help")) { // Help messages
-            if(args.length == 2) {
-//                HttpcHelp.printHelpMessage();
-            }
-            else {
-//                HttpcHelp.printMethodHelpMessage(args[2]);
-            }
+        // more to add here]
+        if (args[1].equals("get")) {
+            try {
+                ArrayList<String> headers = new ArrayList<>();
+                String currentParameter = args[2];
+                int headerTagIndex = currentParameter.equals("-v") ? 3 : 2;
+                isVerbose = currentParameter.equals("-v");
 
-            System.exit(0);
+                while (args[headerTagIndex].equals("-h")) {
+                    headers.add(args[++headerTagIndex]);
+                    headerTagIndex++;
+                }
+
+                int urlIndex = headerTagIndex;
+                String urlString = args[urlIndex];
+
+//                URL url = new URL(urlString);
+//                Request request = new Request(url.getHost(), url.getPath(), HTTPMethod.GET, headers.toArray(new String[]));
+//                Request getRequest = new Request()
+            } catch (NullPointerException exception) {
+
+            }
+        } else if (args[2].equals("post")) {
+            // Parse commands for post
         }
-
-        // more to add here
     }
 
     public HTTPClient(Request request) {
+
         sendUrlRequest(request);
         readResponse();
     }
