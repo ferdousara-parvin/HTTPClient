@@ -1,4 +1,3 @@
-
 import java.io.PrintStream;
 import java.util.List;
 
@@ -12,7 +11,6 @@ public class Request {
     private static final int webContentPort = 80;
     private static final String httpVersion = "HTTP/1.0";
     private static final String eol = "\r\n";
-
 
     public Request(String host, String path, HTTPMethod method, List<String> headers, String data) {
         this.host = host;

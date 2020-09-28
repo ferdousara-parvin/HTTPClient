@@ -2,9 +2,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.MalformedURLException;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class HTTPClient {
 
@@ -14,7 +18,23 @@ public class HTTPClient {
     private static boolean isVerbose = false;
 
     public static void main(String[] args) {
-//        parseInput(args);
+        String method = "get";
+        String urlString = "http://httpbin.org/get?author=The+Geeky+Asian&course=GET+Request+Using+Sockets+in+Java";
+//        args = new String[]{"httpc", method, urlString};
+//        args = new String[]{"httpc", "help", "you"};
+
+
+//        parseArgs(args);
+
+        try {
+            URL url = new URL(urlString);
+            String host = url.getHost();
+            String path = url.getPath();
+            String param = url.getQuery();
+            System.out.println(host + "->" + path);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
 
         // Testing purposes
         List headers = new ArrayList<>();
@@ -34,7 +54,6 @@ public class HTTPClient {
                 "/post",
                 HTTPMethod.POST,
                 headers, data);
-
 
         new HTTPClient(request);
 
@@ -66,7 +85,6 @@ public class HTTPClient {
             System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
             System.exit(0);
         }
-
         if (args[1].equals("get")) {
             try {
                 ArrayList<String> headers = new ArrayList<>();
@@ -89,6 +107,7 @@ public class HTTPClient {
 
             }
         } else if (args[2].equals("post")) {
+            // Parse commands for post
         }
     }
 
@@ -138,6 +157,4 @@ public class HTTPClient {
             e.printStackTrace();
         }
     }
-
-
 }
