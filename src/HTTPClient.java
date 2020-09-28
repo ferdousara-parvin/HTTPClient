@@ -3,64 +3,116 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.Socket;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HTTPClient {
 
     private PrintStream out;
     private BufferedReader in;
     private Socket clientSocket;
+    private static boolean isVerbose = false;
 
     public static void main(String[] args) {
-//        parseRequest(args);
+//        parseInput(args);
 
         // Testing purposes
-        Request request = new Request("www.google.com",
-                "/search?sxsrf=ALeKk02K4A2OBcJYap3QKIQrqpU5MClZaw%3A1601219232074&source=hp&ei=oKpwX83_AYW3gger4rXIDA&q=cats&oq=cats&gs_lcp=CgZwc3ktYWIQAzIKCC4QsQMQQxCTAjICCAAyBQgAELEDMgUILhCxAzICCC4yBQguELEDMgUILhCxAzIICC4QsQMQgwEyCAgAELEDEIMBMggILhCxAxCDAToECCMQJzoFCAAQkQI6CwguELEDEMcBEKMCOg4ILhCxAxCDARDHARCjAjoHCC4QsQMQQzoECAAQQzoICC4QxwEQowJQjwNYxwVgigdoAHAAeAGAAcIBiAGFBJIBAzAuNJgBAKABAaoBB2d3cy13aXo&sclient=psy-ab&ved=0ahUKEwjNz6G8zonsAhWFm-AKHStxDckQ4dUDCAg&uact=5",
-                HTTPMethod.GET,
-                new HashMap<String, String>());
+        List headers = new ArrayList<>();
+//        headers.add("Content-Type: application/json");
+
+//        Request request = new Request("www.google.com",
+//                "/search?sxsrf=ALeKk02K4A2OBcJYap3QKIQrqpU5MClZaw%3A1601219232074&source=hp&ei=oKpwX83_AYW3gger4rXIDA&q=cats&oq=cats&gs_lcp=CgZwc3ktYWIQAzIKCC4QsQMQQxCTAjICCAAyBQgAELEDMgUILhCxAzICCC4yBQguELEDMgUILhCxAzIICC4QsQMQgwEyCAgAELEDEIMBMggILhCxAxCDAToECCMQJzoFCAAQkQI6CwguELEDEMcBEKMCOg4ILhCxAxCDARDHARCjAjoHCC4QsQMQQzoECAAQQzoICC4QxwEQowJQjwNYxwVgigdoAHAAeAGAAcIBiAGFBJIBAzAuNJgBAKABAaoBB2d3cy13aXo&sclient=psy-ab&ved=0ahUKEwjNz6G8zonsAhWFm-AKHStxDckQ4dUDCAg&uact=5",
+//                HTTPMethod.GET,
+//                headers);
+
+        String data = "{" +
+                "\"author\" : \"The Geeky Asian\"," +
+                "\"course\" : \"POST Request Using Sockets in Java\"" +
+                "}";
+
+        Request request = new Request("httpbin.org",
+                "/post",
+                HTTPMethod.POST,
+                headers, data);
+
+
         new HTTPClient(request);
 
     }
 
-    public static void parseRequest(String[] args) {
+    public static void parseArgs(String[] args) {
+        if (args.length > 1 && args[1].equalsIgnoreCase("help")) { // Help messages
+            if (args.length == 2) {
+                // httpc help
+                System.out.print(HelpMessage.GENERAL.getMessage());
+            } else { // args.length > 2
+                // httpc help (get|post)
+                switch (args[2]) {
+                    case "get":
+                        System.out.print(HelpMessage.GET.getMessage());
+                        break;
+                    case "post":
+                        System.out.print(HelpMessage.POST.getMessage());
+                        break;
+                    default:
+                        System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
+                }
+            }
+            System.exit(0);
+        }
+
         // Verify validity of command
-        if (args.length < 2) {
-            System.out.println("Missing some parameters");
+        if (args.length <= 2) {
+            System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
             System.exit(0);
         }
 
-        if(args[1].equalsIgnoreCase("help")) { // Help messages
-            if(args.length == 2) {
-//                HttpcHelp.printHelpMessage();
-            }
-            else {
-//                HttpcHelp.printMethodHelpMessage(args[2]);
-            }
+        if (args[1].equals("get")) {
+            try {
+                ArrayList<String> headers = new ArrayList<>();
+                String currentParameter = args[2];
+                int headerTagIndex = currentParameter.equals("-v") ? 3 : 2;
+                isVerbose = currentParameter.equals("-v");
 
-            System.exit(0);
+                while (args[headerTagIndex].equals("-h")) {
+                    headers.add(args[++headerTagIndex]);
+                    headerTagIndex++;
+                }
+
+                int urlIndex = headerTagIndex;
+                String urlString = args[urlIndex];
+
+//                URL url = new URL(urlString);
+//                Request request = new Request(url.getHost(), url.getPath(), HTTPMethod.GET, headers.toArray(new String[]));
+//                Request getRequest = new Request()
+            } catch (NullPointerException exception) {
+
+            }
+        } else if (args[2].equals("post")) {
         }
-
-        // more to add here
     }
 
     public HTTPClient(Request request) {
-        sendUrlRequest(request);
+        sendRequest(request);
         readResponse();
     }
 
-    private void sendUrlRequest(Request request) {
+    private void sendRequest(Request request) {
         try {
             // Connect to the server
-            clientSocket = new Socket(request.serverUrl, request.port);
+            clientSocket = new Socket(request.getHost(), request.getPort());
 
             // Create input output streams to read and write to the server
             out = new PrintStream(clientSocket.getOutputStream());
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             // Perform request
-            out.println(request.createRequestLine());
-            out.println(request.createRequestHeaders());
+            if (request.getMethod().equals(HTTPMethod.GET)) {
+                request.getRequest(out);
+            }
+            else if (request.getMethod().equals(HTTPMethod.POST)) {
+                request.postRequest(out);
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -69,7 +121,7 @@ public class HTTPClient {
 
     private void readResponse() {
         // Read response from server
-        String line = null;
+        String line = "";
         try {
             line = in.readLine();
 
@@ -86,4 +138,6 @@ public class HTTPClient {
             e.printStackTrace();
         }
     }
+
+
 }
