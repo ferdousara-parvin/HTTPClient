@@ -23,7 +23,6 @@ public class HttpCli {
     static int currentIndex = 0;
 
     public static void main(String[] args) {
-        // TEST: post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post OR post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\test.txt http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit("Request is null.");
         if(responseFilePath.isEmpty())
@@ -54,10 +53,10 @@ public class HttpCli {
         Request request = null;
         switch (httpMethod) {
             case GET:
-                request = new GetRequest(url.getHost(), url.getPath(), headers);
+                request = new GetRequest(url.getHost(), url.getPath(), url.getQuery(), headers);
                 break;
             case POST:
-                request = new PostRequest(url.getHost(), url.getPath(), headers, data);
+                request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data);
                 break;
             default:
                 showErrorAndExit("Request was not properly created.");
