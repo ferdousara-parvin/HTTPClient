@@ -4,6 +4,7 @@ import Requests.GetRequest;
 import Requests.PostRequest;
 import Requests.Request;
 
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -21,14 +22,13 @@ public class HttpCli {
     static int currentIndex = 0;
 
     public static void main(String[] args) {
-        // test it out by putting this params in your command line:
-        // post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post
+        // TEST: post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post OR post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\test.txt http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit();
-        HttpClientLibrary clientLibrary = new HttpClientLibrary(request);
+        new HttpClientLibrary(request);
     }
 
-    public static Request constructRequestFromArgs(String[] args) {
+    private static Request constructRequestFromArgs(String[] args) {
         if (args.length < 1) showErrorAndExit();
 
         setHTTPMethodFromArgs(args);
@@ -64,7 +64,7 @@ public class HttpCli {
         return request;
     }
 
-    public static void setHTTPMethodFromArgs(String[] args) {
+    private static void setHTTPMethodFromArgs(String[] args) {
         switch (args[currentIndex]) {
             case "help":
                 parseHelp(args);
@@ -81,7 +81,7 @@ public class HttpCli {
 
     }
 
-    public static void parseHelp(String[] args) {
+    private static void parseHelp(String[] args) {
         if (args.length == 1) {
             System.out.print(HelpMessage.GENERAL.getMessage());
         } else { // args.length > 1
@@ -98,8 +98,8 @@ public class HttpCli {
         }
     }
 
-    public static void parseOptions(String[] args) {
-        //TODO: Create a variable to check for the exclusive or (d| f)
+    private static void parseOptions(String[] args) {
+        boolean hasDataSource = false;
         // also check that GET does not have a -d or -f
         while (currentIndex < args.length && args[currentIndex].startsWith("-")) {
             switch (args[currentIndex]) {
@@ -113,13 +113,25 @@ public class HttpCli {
                         break;
                     }
                 case "-d"://if get method, then error
+                    // Check for exclusivity (either -d or -f)
+                    if(hasDataSource)
+                        showErrorAndExit();
+                    else
+                        hasDataSource = true;
+
                     if (currentIndex++ < args.length && !args[currentIndex].startsWith("-")) {
                         data = getOptionValue(args);
                         break;
                     }
                 case "-f":// if get method then error
-                    //TODO: Implement option -f
+                    // Check for exclusivity (either -d or -f)
+                    if(hasDataSource)
+                        showErrorAndExit();
+                    else
+                        hasDataSource = true;
+
                     if (currentIndex++ < args.length) {
+                        data = extractDataFromFile(args[currentIndex]);
                         break;
                     }
                 case "-o":
@@ -131,7 +143,7 @@ public class HttpCli {
         }
     }
 
-    public static String getOptionValue(String[] args) {
+    private static String getOptionValue(String[] args) {
         if ((args[currentIndex].startsWith("\"")) || (args[currentIndex].startsWith("\'"))) {
             StringBuilder value = new StringBuilder();
             value.append(args[currentIndex].substring(1));
@@ -144,8 +156,28 @@ public class HttpCli {
         return args[currentIndex];
     }
 
-    public static void showErrorAndExit() {
+    private static void showErrorAndExit() {
         System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
         System.exit(0);
     }
+
+    private static String extractDataFromFile(String filePath) {
+        StringBuilder data = new StringBuilder();
+        File file = new File(filePath);
+
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(file));
+            String string = "";
+            while ((string = br.readLine()) != null)
+                data.append(string + " ");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return data.toString().trim();
+    }
+
+
 }
