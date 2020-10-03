@@ -4,27 +4,35 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.net.MalformedURLException;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
-import java.net.URL;
 
-//TODO: Add documentation
-public class HTTPClientLibrary {
+/**
+ * This class is the client library. It takes care of opening the TCP connection, sending the request and reading the response.
+ */
+public class HttpClientLibrary {
 
     private PrintStream out;
     private BufferedReader in;
     private Socket clientSocket;
     private Request request;
+    private boolean isVerbose;
 
-    public HTTPClientLibrary(Request request) {
+    /**
+     * A HttpClientLibrary constructor.
+     * @param request: A Request object
+     * @param isVerbose: A boolean value
+     */
+    public HttpClientLibrary(Request request, boolean isVerbose) {
         this.request = request;
+        this.isVerbose = isVerbose;
         openTCPConnection();
         sendRequest(request);
         readResponse();
     }
 
+    /**
+     * This method opens a TCP connection using a socket.
+     */
     private void openTCPConnection(){
         try {
             // Connect to the server
@@ -40,17 +48,30 @@ public class HTTPClientLibrary {
         }
     }
 
+    /**
+     * This method sends a request to the server.
+     * @param request: A request object
+     */
     private void sendRequest(Request request) {
-            // Perform request
-            request.performRequest(out);
+        request.performRequest(out);
     }
 
+    /**
+     * This method reads the response from the server.
+     */
     private void readResponse() {
-        // Read response from server
         String line = "";
         try {
             line = in.readLine();
 
+            // Consider verbose option
+            if (!isVerbose) {
+                while (line != null && !line.startsWith("{")) {
+                    line = in.readLine();
+                }
+            }
+
+            // Print out response
             while (line != null) {
                 System.out.println(line);
                 line = in.readLine();

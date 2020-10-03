@@ -4,41 +4,40 @@ import Requests.GetRequest;
 import Requests.PostRequest;
 import Requests.Request;
 
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-//TODO: Add documentation
+/**
+ * This class acts as the command line interface. It parses the client input and generates the appropriate Request object from it.
+ */
 public class HttpCli {
 
     private static boolean isVerbose = false;
-    private static HTTPMethod chosenHTTPMethod;
+    private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
     private static String data = "";
     static int currentIndex = 0;
 
     public static void main(String[] args) {
-        // test it out by putting this params in your command line:
-        // post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post
+        // TEST: post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post OR post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\test.txt http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit();
-        HTTPClientLibrary clientLibrary = new HTTPClientLibrary(request);
+        new HttpClientLibrary(request, isVerbose);
     }
 
-    public static Request constructRequestFromArgs(String[] args) {
+    private static Request constructRequestFromArgs(String[] args) {
         if (args.length < 1) showErrorAndExit();
 
-        setHTTPMethodFromArgs(args);
+        setHTTPMethod(args);
         currentIndex++;
-
         parseOptions(args);
+        if (currentIndex != args.length - 1) showErrorAndExit();  // After parsing all the options, there should remain an argument which is the URL
 
-        // After parsing all the options, the only argument left should be the URL
-        if (currentIndex != args.length - 1) showErrorAndExit();
-
+        // Create URL object
         String urlString = args[currentIndex];
-
         URL url = null;
         try {
             url = new URL(urlString);
@@ -47,8 +46,9 @@ public class HttpCli {
             System.exit(0);
         }
 
+        // Create Request object
         Request request = null;
-        switch (chosenHTTPMethod) {
+        switch (httpMethod) {
             case GET:
                 request = new GetRequest(url.getHost(), url.getPath(), headers);
                 break;
@@ -62,16 +62,16 @@ public class HttpCli {
         return request;
     }
 
-    public static void setHTTPMethodFromArgs(String[] args) {
+    private static void setHTTPMethod(String[] args) {
         switch (args[currentIndex]) {
             case "help":
                 parseHelp(args);
                 System.exit(0);
             case "get":
-                chosenHTTPMethod = HTTPMethod.GET;
+                httpMethod = HTTPMethod.GET;
                 break;
             case "post":
-                chosenHTTPMethod = HTTPMethod.POST;
+                httpMethod = HTTPMethod.POST;
                 break;
             default:
                 showErrorAndExit();
@@ -79,10 +79,10 @@ public class HttpCli {
 
     }
 
-    public static void parseHelp(String[] args) {
+    private static void parseHelp(String[] args) {
         if (args.length == 1) {
             System.out.print(HelpMessage.GENERAL.getMessage());
-        } else { // args.length > 1
+        } else if (args.length == 2) { // args.length > 1
             switch (args[1]) {
                 case "get":
                     System.out.print(HelpMessage.GET.getMessage());
@@ -94,11 +94,12 @@ public class HttpCli {
                     showErrorAndExit();
             }
         }
+        else
+            showErrorAndExit();
     }
 
-    public static void parseOptions(String[] args) {
-        //TODO: Create a variable to check for the exclusive or (d| f)
-        // also check that GET does not have a -d or -f
+    private static void parseOptions(String[] args) {
+        boolean hasDataSource = false;
         while (currentIndex < args.length && args[currentIndex].startsWith("-")) {
             switch (args[currentIndex]) {
                 case "-v":
@@ -110,18 +111,38 @@ public class HttpCli {
                         headers.add(header);
                         break;
                     }
-                case "-d"://if get method, then error
+                case "-d":
+                    if(httpMethod == HTTPMethod.GET)
+                        showErrorAndExit();
+
+                    // Check for exclusivity (either -d or -f)
+                    if(hasDataSource)
+                        showErrorAndExit();
+                    else
+                        hasDataSource = true;
+
+                    // Get data from command line
                     if (currentIndex++ < args.length && !args[currentIndex].startsWith("-")) {
                         data = getOptionValue(args);
                         break;
                     }
-                case "-f":// if get method then error
-                    //TODO: Implement option -f
+                case "-f":
+                    if(httpMethod == HTTPMethod.GET)
+                        showErrorAndExit();
+
+                    // Check for exclusivity (either -d or -f)
+                    if(hasDataSource)
+                        showErrorAndExit();
+                    else
+                        hasDataSource = true;
+
+                    // Get data from file
                     if (currentIndex++ < args.length) {
+                        data = extractDataFromFile(args[currentIndex]);
                         break;
                     }
                 case "-o":
-                    // TODO: Implement option -o
+                    // TODO: Bonus -- Implement option -o
                 default:
                     showErrorAndExit();
             }
@@ -129,7 +150,7 @@ public class HttpCli {
         }
     }
 
-    public static String getOptionValue(String[] args) {
+    private static String getOptionValue(String[] args) {
         if ((args[currentIndex].startsWith("\"")) || (args[currentIndex].startsWith("\'"))) {
             StringBuilder value = new StringBuilder();
             value.append(args[currentIndex].substring(1));
@@ -142,8 +163,25 @@ public class HttpCli {
         return args[currentIndex];
     }
 
-    public static void showErrorAndExit() {
+    private static String extractDataFromFile(String filePath) {
+        StringBuilder data = new StringBuilder();
+        File file = new File(filePath);
+
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(file));
+            String string = "";
+            while ((string = br.readLine()) != null)
+                data.append(string).append(" ");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return data.toString().trim();
+    }
+
+    private static void showErrorAndExit() {
         System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
         System.exit(0);
     }
+
 }
