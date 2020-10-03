@@ -1,8 +1,10 @@
+package Helpers;
+
 public enum HTTPMethod {
     GET("GET"),
     POST("POST");
 
-    String value;
+    final String value;
 
     HTTPMethod(String method) {
         this.value = method;
