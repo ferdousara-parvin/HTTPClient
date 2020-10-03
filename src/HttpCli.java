@@ -151,14 +151,14 @@ public class HttpCli {
     }
 
     private static String getOptionValue(String[] args) {
-        if ((args[currentIndex].startsWith("\"")) || (args[currentIndex].startsWith("\'"))) {
+        if ((args[currentIndex].startsWith("\'")) || (args[currentIndex].startsWith("\""))) {
             StringBuilder value = new StringBuilder();
-            value.append(args[currentIndex].substring(1));
-            while ((args[currentIndex].startsWith("\"") && !args[currentIndex].endsWith("\"")) || (args[currentIndex].startsWith("\'") && !args[currentIndex].endsWith("\'"))) {
+            value.append(args[currentIndex]);
+            while ((value.toString().startsWith("\'") && !value.toString().endsWith("\'")) || (value.toString().startsWith("\"") && !value.toString().endsWith("\""))) {
                 currentIndex++;
-                value.append(args[currentIndex].substring(0, args[currentIndex].length() - 1));
+                value.append(args[currentIndex]);
             }
-            return value.toString();
+            return value.toString().trim().substring(1, value.length() - 1);
         }
         return args[currentIndex];
     }
