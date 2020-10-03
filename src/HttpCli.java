@@ -16,7 +16,6 @@ import java.util.List;
 public class HttpCli {
 
     private static boolean isVerbose = false;
-    private static boolean writeResponseToFile = false;
     private static String responseFilePath = "";
     private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
@@ -27,7 +26,10 @@ public class HttpCli {
         // TEST: post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post OR post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\test.txt http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit("Request is null.");
-        new HttpClientLibrary(request, isVerbose, writeResponseToFile, responseFilePath);
+        if(responseFilePath.isEmpty())
+            new HttpClientLibrary(request, isVerbose);
+        else
+            new HttpClientLibrary(request, isVerbose, responseFilePath);
     }
 
     private static Request constructRequestFromArgs(String[] args) {
@@ -36,10 +38,10 @@ public class HttpCli {
         setHTTPMethod(args);
         currentIndex++;
         parseOptions(args);
-        if (currentIndex != args.length - 1) showErrorAndExit("URL is missing.");  // Assumption: last input should be URL
+        if (currentIndex != args.length - 1) showErrorAndExit("URL is missing.");
 
         // Create URL object
-        String urlString = args[currentIndex];
+        String urlString = cleanUpUrl(args[currentIndex]);
         URL url = null;
         try {
             url = new URL(urlString);
@@ -144,7 +146,6 @@ public class HttpCli {
                         break;
                     }
                 case "-o":
-                    writeResponseToFile = true;
                     currentIndex++;
                     responseFilePath = getOptionValue(args);
                     break;
@@ -183,6 +184,13 @@ public class HttpCli {
         }
 
         return data.toString().trim();
+    }
+
+    private static String cleanUpUrl(String url) {
+        if(url.startsWith("\'") || url.startsWith("\""))
+            return url.substring(1, url.length() - 1);
+
+        return url;
     }
 
     private static void showErrorAndExit(String message) {

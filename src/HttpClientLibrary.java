@@ -13,7 +13,6 @@ public class HttpClientLibrary {
     private Socket clientSocket;
     private Request request;
     private boolean isVerbose;
-    private boolean writeResponseToFile;
     private String responseFilePath;
 
     /**
@@ -21,10 +20,23 @@ public class HttpClientLibrary {
      * @param request: A Request object
      * @param isVerbose: A boolean value
      */
-    public HttpClientLibrary(Request request, boolean isVerbose, boolean writeResponseToFile, String responseFilePath) {
+    public HttpClientLibrary(Request request, boolean isVerbose) {
         this.request = request;
         this.isVerbose = isVerbose;
-        this.writeResponseToFile = writeResponseToFile;
+        openTCPConnection();
+        sendRequest(request);
+        readResponse();
+    }
+
+    /**
+     * A HttpClientLibrary constructor.
+     * @param request: A Request object
+     * @param isVerbose: A boolean value
+     * @param responseFilePath: A String value
+     */
+    public HttpClientLibrary(Request request, boolean isVerbose, String responseFilePath) {
+        this.request = request;
+        this.isVerbose = isVerbose;
         this.responseFilePath = responseFilePath;
         openTCPConnection();
         sendRequest(request);
@@ -75,7 +87,7 @@ public class HttpClientLibrary {
             // Print out response
 
             // To file
-            if(writeResponseToFile) {
+            if(!responseFilePath.isEmpty()) {
                 BufferedWriter writer = new BufferedWriter(new FileWriter(responseFilePath));
                 while(line != null) {
                     writer.write(line);
