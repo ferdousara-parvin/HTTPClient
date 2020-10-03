@@ -1,9 +1,6 @@
 import Requests.Request;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
+import java.io.*;
 import java.net.Socket;
 
 /**
@@ -16,15 +13,19 @@ public class HttpClientLibrary {
     private Socket clientSocket;
     private Request request;
     private boolean isVerbose;
+    private boolean writeResponseToFile;
+    private String responseFilePath;
 
     /**
      * A HttpClientLibrary constructor.
      * @param request: A Request object
      * @param isVerbose: A boolean value
      */
-    public HttpClientLibrary(Request request, boolean isVerbose) {
+    public HttpClientLibrary(Request request, boolean isVerbose, boolean writeResponseToFile, String responseFilePath) {
         this.request = request;
         this.isVerbose = isVerbose;
+        this.writeResponseToFile = writeResponseToFile;
+        this.responseFilePath = responseFilePath;
         openTCPConnection();
         sendRequest(request);
         readResponse();
@@ -72,9 +73,23 @@ public class HttpClientLibrary {
             }
 
             // Print out response
-            while (line != null) {
-                System.out.println(line);
-                line = in.readLine();
+
+            // To file
+            if(writeResponseToFile) {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(responseFilePath));
+                while(line != null) {
+                    writer.write(line);
+                    writer.newLine();
+                    line = in.readLine();
+                }
+                writer.close();
+            }
+            else // To console
+            {
+                while (line != null) {
+                    System.out.println(line);
+                    line = in.readLine();
+                }
             }
 
             // Close streams
