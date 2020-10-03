@@ -17,6 +17,11 @@ public class HttpClientLibrary {
     private Request request;
     private boolean isVerbose;
 
+    /**
+     * A HttpClientLibrary constructor.
+     * @param request: A Request object
+     * @param isVerbose: A boolean value
+     */
     public HttpClientLibrary(Request request, boolean isVerbose) {
         this.request = request;
         this.isVerbose = isVerbose;
@@ -45,6 +50,7 @@ public class HttpClientLibrary {
 
     /**
      * This method sends a request to the server.
+     * @param request: A request object
      */
     private void sendRequest(Request request) {
         request.performRequest(out);
