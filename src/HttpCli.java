@@ -9,7 +9,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-//TODO: Add documentation
+/**
+ * This class acts as the command line interface. It parses the client input and generates the appropriate Request object from it.
+ */
 public class HttpCli {
 
     private static boolean isVerbose = false;
@@ -23,7 +25,7 @@ public class HttpCli {
         // post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit();
-        HTTPClientLibrary clientLibrary = new HTTPClientLibrary(request);
+        HttpClientLibrary clientLibrary = new HttpClientLibrary(request);
     }
 
     public static Request constructRequestFromArgs(String[] args) {

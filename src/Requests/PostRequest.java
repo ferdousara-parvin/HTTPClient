@@ -5,6 +5,9 @@ import Helpers.HTTPMethod;
 import java.io.PrintStream;
 import java.util.List;
 
+/**
+ * This class creates a POST request.
+ */
 public class PostRequest extends Request {
     private String data;
 

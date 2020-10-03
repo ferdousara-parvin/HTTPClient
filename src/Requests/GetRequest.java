@@ -5,6 +5,9 @@ import Helpers.HTTPMethod;
 import java.io.PrintStream;
 import java.util.List;
 
+/**
+ * This class creates a GET request.
+ */
 public class GetRequest extends Request {
 
     public GetRequest(String host, String path, List<String> headers) {

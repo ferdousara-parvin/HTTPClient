@@ -4,21 +4,19 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.net.MalformedURLException;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
-import java.net.URL;
 
-//TODO: Add documentation
-public class HTTPClientLibrary {
+/**
+ * This class is the client library. It takes care of opening the TCP connection, sending the request and reading the response.
+ */
+public class HttpClientLibrary {
 
     private PrintStream out;
     private BufferedReader in;
     private Socket clientSocket;
     private Request request;
 
-    public HTTPClientLibrary(Request request) {
+    public HttpClientLibrary(Request request) {
         this.request = request;
         openTCPConnection();
         sendRequest(request);

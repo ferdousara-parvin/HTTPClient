@@ -5,6 +5,9 @@ import Helpers.HTTPMethod;
 import java.io.PrintStream;
 import java.util.List;
 
+/**
+ * This parent class creates a Request object.
+ */
 public class Request {
     protected String host;
     protected String path;
