@@ -25,7 +25,7 @@ public class HttpCli {
         // TEST: post -h Content-Type:application/json -d '{"Assignment": 1}' http://httpbin.org/post OR post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\test.txt http://httpbin.org/post
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit();
-        new HttpClientLibrary(request);
+        new HttpClientLibrary(request, isVerbose);
     }
 
     private static Request constructRequestFromArgs(String[] args) {
@@ -82,7 +82,7 @@ public class HttpCli {
     private static void parseHelp(String[] args) {
         if (args.length == 1) {
             System.out.print(HelpMessage.GENERAL.getMessage());
-        } else { // args.length > 1
+        } else if (args.length == 2) { // args.length > 1
             switch (args[1]) {
                 case "get":
                     System.out.print(HelpMessage.GET.getMessage());
@@ -94,6 +94,8 @@ public class HttpCli {
                     showErrorAndExit();
             }
         }
+        else
+            showErrorAndExit();
     }
 
     private static void parseOptions(String[] args) {

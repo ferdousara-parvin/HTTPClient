@@ -15,14 +15,19 @@ public class HttpClientLibrary {
     private BufferedReader in;
     private Socket clientSocket;
     private Request request;
+    private boolean isVerbose;
 
-    public HttpClientLibrary(Request request) {
+    public HttpClientLibrary(Request request, boolean isVerbose) {
         this.request = request;
+        this.isVerbose = isVerbose;
         openTCPConnection();
         sendRequest(request);
         readResponse();
     }
 
+    /**
+     * This method opens a TCP connection using a socket.
+     */
     private void openTCPConnection(){
         try {
             // Connect to the server
@@ -38,17 +43,29 @@ public class HttpClientLibrary {
         }
     }
 
+    /**
+     * This method sends a request to the server.
+     */
     private void sendRequest(Request request) {
-            // Perform request
-            request.performRequest(out);
+        request.performRequest(out);
     }
 
+    /**
+     * This method reads the response from the server.
+     */
     private void readResponse() {
-        // Read response from server
         String line = "";
         try {
             line = in.readLine();
 
+            // Consider verbose option
+            if (!isVerbose) {
+                while (line != null && !line.startsWith("{")) {
+                    line = in.readLine();
+                }
+            }
+
+            // Print out response
             while (line != null) {
                 System.out.println(line);
                 line = in.readLine();
