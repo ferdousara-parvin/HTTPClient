@@ -16,7 +16,7 @@ import java.util.List;
 public class HttpCli {
 
     private static boolean isVerbose = false;
-    private static HTTPMethod chosenHTTPMethod;
+    private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
     private static String data = "";
     static int currentIndex = 0;
@@ -31,16 +31,13 @@ public class HttpCli {
     private static Request constructRequestFromArgs(String[] args) {
         if (args.length < 1) showErrorAndExit();
 
-        setHTTPMethodFromArgs(args);
+        setHTTPMethod(args);
         currentIndex++;
-
         parseOptions(args);
+        if (currentIndex != args.length - 1) showErrorAndExit();  // After parsing all the options, there should remain an argument which is the URL
 
-        // After parsing all the options, the only argument left should be the URL
-        if (currentIndex != args.length - 1) showErrorAndExit();
-
+        // Create URL object
         String urlString = args[currentIndex];
-
         URL url = null;
         try {
             url = new URL(urlString);
@@ -49,8 +46,9 @@ public class HttpCli {
             System.exit(0);
         }
 
+        // Create Request object
         Request request = null;
-        switch (chosenHTTPMethod) {
+        switch (httpMethod) {
             case GET:
                 request = new GetRequest(url.getHost(), url.getPath(), headers);
                 break;
@@ -64,16 +62,16 @@ public class HttpCli {
         return request;
     }
 
-    private static void setHTTPMethodFromArgs(String[] args) {
+    private static void setHTTPMethod(String[] args) {
         switch (args[currentIndex]) {
             case "help":
                 parseHelp(args);
                 System.exit(0);
             case "get":
-                chosenHTTPMethod = HTTPMethod.GET;
+                httpMethod = HTTPMethod.GET;
                 break;
             case "post":
-                chosenHTTPMethod = HTTPMethod.POST;
+                httpMethod = HTTPMethod.POST;
                 break;
             default:
                 showErrorAndExit();
@@ -100,7 +98,6 @@ public class HttpCli {
 
     private static void parseOptions(String[] args) {
         boolean hasDataSource = false;
-        // also check that GET does not have a -d or -f
         while (currentIndex < args.length && args[currentIndex].startsWith("-")) {
             switch (args[currentIndex]) {
                 case "-v":
@@ -112,30 +109,38 @@ public class HttpCli {
                         headers.add(header);
                         break;
                     }
-                case "-d"://if get method, then error
+                case "-d":
+                    if(httpMethod == HTTPMethod.GET)
+                        showErrorAndExit();
+
                     // Check for exclusivity (either -d or -f)
                     if(hasDataSource)
                         showErrorAndExit();
                     else
                         hasDataSource = true;
 
+                    // Get data from command line
                     if (currentIndex++ < args.length && !args[currentIndex].startsWith("-")) {
                         data = getOptionValue(args);
                         break;
                     }
-                case "-f":// if get method then error
+                case "-f":
+                    if(httpMethod == HTTPMethod.GET)
+                        showErrorAndExit();
+
                     // Check for exclusivity (either -d or -f)
                     if(hasDataSource)
                         showErrorAndExit();
                     else
                         hasDataSource = true;
 
+                    // Get data from file
                     if (currentIndex++ < args.length) {
                         data = extractDataFromFile(args[currentIndex]);
                         break;
                     }
                 case "-o":
-                    // TODO: Implement option -o
+                    // TODO: Bonus -- Implement option -o
                 default:
                     showErrorAndExit();
             }
@@ -156,11 +161,6 @@ public class HttpCli {
         return args[currentIndex];
     }
 
-    private static void showErrorAndExit() {
-        System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
-        System.exit(0);
-    }
-
     private static String extractDataFromFile(String filePath) {
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
@@ -169,9 +169,7 @@ public class HttpCli {
             BufferedReader br = new BufferedReader(new FileReader(file));
             String string = "";
             while ((string = br.readLine()) != null)
-                data.append(string + " ");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+                data.append(string).append(" ");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -179,5 +177,9 @@ public class HttpCli {
         return data.toString().trim();
     }
 
+    private static void showErrorAndExit() {
+        System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
+        System.exit(0);
+    }
 
 }

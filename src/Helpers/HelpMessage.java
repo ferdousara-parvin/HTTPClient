@@ -6,7 +6,6 @@ package Helpers;
 public enum HelpMessage {
     INCORRECT_PARAM, GENERAL, GET, POST;
 
-    //TODO: Use stringf to create the help message
     public String getMessage() {
         String message = "";
         switch (this) {
