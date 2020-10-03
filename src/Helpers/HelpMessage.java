@@ -1,7 +1,7 @@
 package Helpers;
 
 /**
- * This enum class contians the different types of help messages that can be sent to the user.
+ * This enum class contains the different types of help messages that can be sent to the user.
  */
 public enum HelpMessage {
     INCORRECT_PARAM, GENERAL, GET, POST;
