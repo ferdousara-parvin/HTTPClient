@@ -16,6 +16,7 @@ import java.util.List;
 public class HttpCli {
 
     private static boolean isVerbose = false;
+    private static String responseFilePath = "";
     private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
     private static String data = "";
@@ -23,20 +24,23 @@ public class HttpCli {
 
     public static void main(String[] args) {
         Request request = constructRequestFromArgs(args);
-        if (request == null) showErrorAndExit();
-        new HttpClientLibrary(request, isVerbose);
+        if (request == null) showErrorAndExit("Request is null.");
+        if(responseFilePath.isEmpty())
+            new HttpClientLibrary(request, isVerbose);
+        else
+            new HttpClientLibrary(request, isVerbose, responseFilePath);
     }
 
     private static Request constructRequestFromArgs(String[] args) {
-        if (args.length < 1) showErrorAndExit();
+        if (args.length < 1) showErrorAndExit("Incorrect number of parameters.");
 
         setHTTPMethod(args);
         currentIndex++;
         parseOptions(args);
-        if (currentIndex != args.length - 1) showErrorAndExit();  // After parsing all the options, there should remain an argument which is the URL
+        if (currentIndex != args.length - 1) showErrorAndExit("URL is missing.");
 
         // Create URL object
-        String urlString = args[currentIndex];
+        String urlString = cleanUpUrl(args[currentIndex]);
         URL url = null;
         try {
             url = new URL(urlString);
@@ -55,7 +59,7 @@ public class HttpCli {
                 request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data);
                 break;
             default:
-                showErrorAndExit();
+                showErrorAndExit("Request was not properly created.");
         }
 
         return request;
@@ -73,7 +77,7 @@ public class HttpCli {
                 httpMethod = HTTPMethod.POST;
                 break;
             default:
-                showErrorAndExit();
+                showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
         }
 
     }
@@ -90,11 +94,11 @@ public class HttpCli {
                     System.out.print(HelpMessage.POST.getMessage());
                     break;
                 default:
-                    showErrorAndExit();
+                    showErrorAndExit("Incorrect parameters. The following are supported: help get, help post.");
             }
         }
         else
-            showErrorAndExit();
+            showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
     }
 
     private static void parseOptions(String[] args) {
@@ -112,11 +116,11 @@ public class HttpCli {
                     }
                 case "-d":
                     if(httpMethod == HTTPMethod.GET)
-                        showErrorAndExit();
+                        showErrorAndExit("Cannot use -d option in a GET request.");
 
                     // Check for exclusivity (either -d or -f)
                     if(hasDataSource)
-                        showErrorAndExit();
+                        showErrorAndExit("Cannot have both -d and -f options for a POST request.");
                     else
                         hasDataSource = true;
 
@@ -127,11 +131,11 @@ public class HttpCli {
                     }
                 case "-f":
                     if(httpMethod == HTTPMethod.GET)
-                        showErrorAndExit();
+                        showErrorAndExit("Cannot use -f option in a GET request.");
 
                     // Check for exclusivity (either -d or -f)
                     if(hasDataSource)
-                        showErrorAndExit();
+                        showErrorAndExit("Cannot have both -d and -f options for a POST request.");
                     else
                         hasDataSource = true;
 
@@ -141,9 +145,11 @@ public class HttpCli {
                         break;
                     }
                 case "-o":
-                    // TODO: Bonus -- Implement option -o
+                    currentIndex++;
+                    responseFilePath = getOptionValue(args);
+                    break;
                 default:
-                    showErrorAndExit();
+                    showErrorAndExit("Option is not supported. Here's the list of supported options: -v, -d, -f, -o, -h.");
             }
             currentIndex++;
         }
@@ -171,6 +177,7 @@ public class HttpCli {
             String string = "";
             while ((string = br.readLine()) != null)
                 data.append(string).append(" ");
+            br.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -178,8 +185,15 @@ public class HttpCli {
         return data.toString().trim();
     }
 
-    private static void showErrorAndExit() {
-        System.out.print(HelpMessage.INCORRECT_PARAM.getMessage());
+    private static String cleanUpUrl(String url) {
+        if(url.startsWith("\'") || url.startsWith("\""))
+            return url.substring(1, url.length() - 1);
+
+        return url;
+    }
+
+    private static void showErrorAndExit(String message) {
+        System.out.print(message + "\n");
         System.exit(0);
     }
 
