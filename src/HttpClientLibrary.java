@@ -129,13 +129,25 @@ public class HttpClientLibrary {
             String[] statusLineComponents = line.trim().split(" ");
             if (statusLineComponents.length >= 3) {
                 printLine(line);
-                shouldRedirect = (statusLineComponents[1].equals(String.valueOf(Redirectable.redirectCode)) &&
-                        request instanceof Redirectable);
+                try {
+                    int statusCode = Integer.parseInt(statusLineComponents[1]);
+                    boolean isRedirectCode = statusCode == Redirectable.StatusCode.MOVED_PERMANENTLY.code ||
+                            statusCode == Redirectable.StatusCode.FOUND.code ||
+                            statusCode == Redirectable.StatusCode.TEMPORARY_REDIRECT.code;
+                    shouldRedirect = isRedirectCode && request instanceof Redirectable;
+                }catch (NumberFormatException exception) {
+                    System.out.println("Status code cannot be converted to int: " + exception);
+                    System.exit(0);
+                }
+
             } else {
                 System.out.println("Response's status line is not formatted properly: " + line);
                 System.exit(0);
             }
 
+        } else {
+            System.out.println("Status line is not there!");
+            System.exit(0);
         }
         return shouldRedirect;
     }

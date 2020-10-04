@@ -48,4 +48,5 @@ java HttpCli get -h Content-Type:application/json -h Connection:keep-alive "http
 ```
 Get with redirect
 java HttpCli get -v "http://www.wikipedia.net/"
+java HttpCli get -v http://concordia.ca/
 ```
