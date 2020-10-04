@@ -1,3 +1,4 @@
+import Requests.Redirectable;
 import Requests.Request;
 
 import java.io.*;
@@ -14,39 +15,36 @@ public class HttpClientLibrary {
     private Request request;
     private boolean isVerbose;
     private String responseFilePath;
+    private int redirectCounter = 0;
+    private final static int REDIRECT_MAXIMUM = 5;
+    private BufferedWriter writer;
 
-    /**
-     * A HttpClientLibrary constructor.
-     * @param request: A Request object
-     * @param isVerbose: A boolean value
-     */
     public HttpClientLibrary(Request request, boolean isVerbose) {
-        this.request = request;
-        this.isVerbose = isVerbose;
-        openTCPConnection();
-        sendRequest(request);
-        readResponse();
+        this(request, isVerbose, "");
     }
 
-    /**
-     * A HttpClientLibrary constructor.
-     * @param request: A Request object
-     * @param isVerbose: A boolean value
-     * @param responseFilePath: A String value
-     */
     public HttpClientLibrary(Request request, boolean isVerbose, String responseFilePath) {
         this.request = request;
         this.isVerbose = isVerbose;
         this.responseFilePath = responseFilePath;
-        openTCPConnection();
-        sendRequest(request);
-        readResponse();
+        try {
+            if (!responseFilePath.isEmpty())
+                writer = new BufferedWriter(new FileWriter(responseFilePath));
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(0);
+        }
+        performRequest();
     }
 
-    /**
-     * This method opens a TCP connection using a socket.
-     */
-    private void openTCPConnection(){
+    private void performRequest() {
+        openTCPConnection();
+        sendRequestToServer(request);
+        readResponse();
+        closeTCPConnection();
+    }
+
+    private void openTCPConnection() {
         try {
             // Connect to the server
             clientSocket = new Socket(request.getHost(), request.getPort());
@@ -61,55 +59,115 @@ public class HttpClientLibrary {
         }
     }
 
-    /**
-     * This method sends a request to the server.
-     * @param request: A request object
-     */
-    private void sendRequest(Request request) {
-        request.performRequest(out);
-    }
-
-    /**
-     * This method reads the response from the server.
-     */
-    private void readResponse() {
-        String line = "";
+    private void closeTCPConnection() {
+        // Close streams
         try {
-            line = in.readLine();
-
-            // Consider verbose option
-            if (!isVerbose) {
-                while (line != null && !line.startsWith("{")) {
-                    line = in.readLine();
-                }
-            }
-
-            // Print out response
-
-            // To file
-            if(!responseFilePath.isEmpty()) {
-                BufferedWriter writer = new BufferedWriter(new FileWriter(responseFilePath));
-                while(line != null) {
-                    writer.write(line);
-                    writer.newLine();
-                    line = in.readLine();
-                }
-                writer.close();
-            }
-            else // To console
-            {
-                while (line != null) {
-                    System.out.println(line);
-                    line = in.readLine();
-                }
-            }
-
-            // Close streams
             in.close();
             out.close();
             clientSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
+    private void sendRequestToServer(Request request) {
+        request.sendRequest(out);
+    }
+
+    private void readResponse() {
+        String line = "";
+
+        try {
+
+            // Read status line and check if it is a redirect
+            line = in.readLine();
+            boolean shouldRedirect = shouldRedirect(line);
+
+            // Parse through response headers
+            line = in.readLine();
+            while (line != null && !line.isEmpty() && !line.startsWith("{")) {
+
+                //Search headers for Location: redirectURI
+                if (shouldRedirect && line.contains("Location:")) {
+                    printLine(line); // print the location header
+                    String redirectURI = line.substring(line.indexOf(":") + 1).trim();
+                    redirectTo(redirectURI);
+                    return;
+                }
+
+                printLine(line);
+                line = in.readLine();
+            }
+
+            // There is an error if the redirect link is not in the response headers
+            if (shouldRedirect) {
+                System.out.println("Response code 302 but no redirection URI found!");
+                System.exit(0);
+            }
+
+            // Print out response body
+
+            // To file
+            while (line != null) {
+                printLine(line);
+                line = in.readLine();
+            }
+
+            if (writer != null)
+                writer.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
+    private boolean shouldRedirect(String line) {
+        boolean shouldRedirect = false;
+        if (line != null) {
+            String[] statusLineComponents = line.trim().split(" ");
+            if (statusLineComponents.length >= 3) {
+                printLine(line);
+                shouldRedirect = (statusLineComponents[1].equals(String.valueOf(Redirectable.redirectCode)) &&
+                        request instanceof Redirectable);
+            } else {
+                System.out.println("Response's status line is not formatted properly: " + line);
+                System.exit(0);
+            }
+
+        }
+        return shouldRedirect;
+    }
+
+    private void redirectTo(String redirectURI) {
+        // Close existing socket
+        closeTCPConnection();
+
+        if (redirectCounter < REDIRECT_MAXIMUM && request instanceof Redirectable) {
+            System.out.println("------------ REDIRECTED -------------");
+            this.request = ((Redirectable) request).getRedirectRequest(redirectURI);
+            redirectCounter++;
+            performRequest();
+        }
+    }
+
+    private void writeToFile(String line) {
+        try {
+            writer.write(line);
+            writer.newLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
+    private void printLine(String line) {
+        if (isVerbose) {
+            if (writer != null)
+                writeToFile(line);
+            else
+                System.out.println(line);
         }
     }
 }

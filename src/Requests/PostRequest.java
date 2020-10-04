@@ -16,9 +16,9 @@ public class PostRequest extends Request {
         this.data = data;
     }
 
-    public void performRequest(PrintStream out) {
+    public void sendRequest(PrintStream out) {
         //Send request line
-        super.performRequest(out);
+        super.sendRequest(out);
 
         // Send request headers
         out.print("Content-Length: " + this.data.length() + eol);

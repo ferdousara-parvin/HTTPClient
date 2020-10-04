@@ -25,14 +25,15 @@ public class HttpCli {
     public static void main(String[] args) {
         Request request = constructRequestFromArgs(args);
         if (request == null) showErrorAndExit("Request is null.");
-        if(responseFilePath.isEmpty())
+        if (responseFilePath.isEmpty())
             new HttpClientLibrary(request, isVerbose);
         else
             new HttpClientLibrary(request, isVerbose, responseFilePath);
     }
 
+    // Parse the arguments given and create a request from them
     private static Request constructRequestFromArgs(String[] args) {
-        if (args.length < 1) showErrorAndExit("Incorrect number of parameters.");
+        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
 
         setHTTPMethod(args);
         currentIndex++;
@@ -65,6 +66,7 @@ public class HttpCli {
         return request;
     }
 
+    // Helper method to determine the http method type from the given arguments
     private static void setHTTPMethod(String[] args) {
         switch (args[currentIndex]) {
             case "help":
@@ -82,6 +84,7 @@ public class HttpCli {
 
     }
 
+    // Helper method to show the correct help message depending on the given arguments
     private static void parseHelp(String[] args) {
         if (args.length == 1) {
             System.out.print(HelpMessage.GENERAL.getMessage());
@@ -96,11 +99,11 @@ public class HttpCli {
                 default:
                     showErrorAndExit("Incorrect parameters. The following are supported: help get, help post.");
             }
-        }
-        else
+        } else
             showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
     }
 
+    // Helper method to determine which options are asked for from the given arguments
     private static void parseOptions(String[] args) {
         boolean hasDataSource = false;
         while (currentIndex < args.length && args[currentIndex].startsWith("-")) {
@@ -115,11 +118,11 @@ public class HttpCli {
                         break;
                     }
                 case "-d":
-                    if(httpMethod == HTTPMethod.GET)
+                    if (httpMethod == HTTPMethod.GET)
                         showErrorAndExit("Cannot use -d option in a GET request.");
 
                     // Check for exclusivity (either -d or -f)
-                    if(hasDataSource)
+                    if (hasDataSource)
                         showErrorAndExit("Cannot have both -d and -f options for a POST request.");
                     else
                         hasDataSource = true;
@@ -130,11 +133,11 @@ public class HttpCli {
                         break;
                     }
                 case "-f":
-                    if(httpMethod == HTTPMethod.GET)
+                    if (httpMethod == HTTPMethod.GET)
                         showErrorAndExit("Cannot use -f option in a GET request.");
 
                     // Check for exclusivity (either -d or -f)
-                    if(hasDataSource)
+                    if (hasDataSource)
                         showErrorAndExit("Cannot have both -d and -f options for a POST request.");
                     else
                         hasDataSource = true;
@@ -155,6 +158,8 @@ public class HttpCli {
         }
     }
 
+    // Helper method to determine the value for the options given the arguments.
+    // The returned value will not have enclosing quotations.
     private static String getOptionValue(String[] args) {
         if ((args[currentIndex].startsWith("\'")) || (args[currentIndex].startsWith("\""))) {
             StringBuilder value = new StringBuilder();
@@ -168,6 +173,7 @@ public class HttpCli {
         return args[currentIndex];
     }
 
+    // Helper method to extract data from a file given it's path
     private static String extractDataFromFile(String filePath) {
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
@@ -185,13 +191,15 @@ public class HttpCli {
         return data.toString().trim();
     }
 
+    // Helper method to remove the quotations enclosing the URL if there is any
     private static String cleanUpUrl(String url) {
-        if(url.startsWith("\'") || url.startsWith("\""))
+        if (url.startsWith("\'") || url.startsWith("\""))
             return url.substring(1, url.length() - 1);
 
         return url;
     }
 
+    // Helper method to show the error message before exiting
     private static void showErrorAndExit(String message) {
         System.out.print(message + "\n");
         System.exit(0);
