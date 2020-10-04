@@ -3,14 +3,14 @@ COMP 445 -- Lab Assignment 1: Implement a simple HTTP client application
 
 Directives: [Directives.pdf](https://github.com/viveanban/HTTPClient/blob/master/Directives.pdf)
 
-Assumptions:
+#### Assumptions:
 1. URL will be the last argument (and should be enclosed in a quotation mark).
 2. All options will come before the URL and can be in any order.
 3. URL's written on a Windows command-line needs to have escaped quotation marks.
 4. All arguments separated by a space should be enclosed by quotation marks.
 
 
-Test the program with the following:
+#### Test the program with the following:
 
 ```
 Post with both -d and -f options
