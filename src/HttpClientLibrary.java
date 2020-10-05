@@ -96,7 +96,8 @@ public class HttpClientLibrary {
                     return;
                 }
 
-                printLine(line);
+                if (isVerbose)
+                    printLine(line);
                 line = in.readLine();
             }
 
@@ -128,14 +129,14 @@ public class HttpClientLibrary {
         if (line != null) {
             String[] statusLineComponents = line.trim().split(" ");
             if (statusLineComponents.length >= 3) {
-                printLine(line);
+                if(isVerbose) printLine(line);
                 try {
                     int statusCode = Integer.parseInt(statusLineComponents[1]);
                     boolean isRedirectCode = statusCode == Redirectable.StatusCode.MOVED_PERMANENTLY.code ||
                             statusCode == Redirectable.StatusCode.FOUND.code ||
                             statusCode == Redirectable.StatusCode.TEMPORARY_REDIRECT.code;
                     shouldRedirect = isRedirectCode && request instanceof Redirectable;
-                }catch (NumberFormatException exception) {
+                } catch (NumberFormatException exception) {
                     System.out.println("Status code cannot be converted to int: " + exception);
                     System.exit(0);
                 }
@@ -175,11 +176,9 @@ public class HttpClientLibrary {
     }
 
     private void printLine(String line) {
-        if (isVerbose) {
-            if (writer != null)
-                writeToFile(line);
-            else
-                System.out.println(line);
-        }
+        if (writer != null)
+            writeToFile(line);
+        else
+            System.out.println(line);
     }
 }
