@@ -33,7 +33,7 @@ public class HttpCli {
 
     // Parse the arguments given and create a request from them
     private static Request constructRequestFromArgs(String[] args) {
-        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
 
         setHTTPMethod(args);
         currentIndex++;
@@ -79,7 +79,7 @@ public class HttpCli {
                 httpMethod = HTTPMethod.POST;
                 break;
             default:
-                showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+                showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
         }
 
     }
@@ -87,7 +87,7 @@ public class HttpCli {
     // Helper method to show the correct help message depending on the given arguments
     private static void parseHelp(String[] args) {
         if (args.length == 1) {
-            System.out.print(HelpMessage.GENERAL.getMessage());
+            System.out.print(HelpMessage.CLIENT.getMessage());
         } else if (args.length == 2) { // args.length > 1
             switch (args[1]) {
                 case "get":
@@ -100,7 +100,7 @@ public class HttpCli {
                     showErrorAndExit("Incorrect parameters. The following are supported: help get, help post.");
             }
         } else
-            showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+            showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
     }
 
     // Helper method to determine which options are asked for from the given arguments
@@ -201,7 +201,7 @@ public class HttpCli {
 
     // Helper method to show the error message before exiting
     private static void showErrorAndExit(String message) {
-        System.out.print(message + "\n");
+        System.err.print(message + "\n");
         System.exit(0);
     }
 
