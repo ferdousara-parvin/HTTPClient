@@ -18,7 +18,9 @@ public class Httpfs {
             System.exit(0);
         }
 
-        // can have verbose, add the port and directory
+        // can have verbose (debugging messages)
+        // can have the port
+        // can have directory
 
     }
 
