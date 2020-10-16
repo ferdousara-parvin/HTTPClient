@@ -46,12 +46,12 @@ public enum HelpMessage {
                         "Associates the content of a file to the body HTTP POST request.\n\n" +
                         "Either [-d] or [-f] can be used but not both.\n";
                 break;
-            case SERVER: // TODO: verify if formatting is correct
+            case SERVER:
                 message = "httpfs is a simple file server.\n" +
                         "usage: httpfs [-v] [-p PORT] [-d PATH-TO-DIR]\n" +
                         "\t-v \tPrints debugging messages.\n" +
                         "\t-p \tSpecifies the port number that the server will listen and serve at.\n" +
-                        "\t\tDefault is 8080." +
+                        "\t\tDefault is 8080.\n" +
                         "\t-d \tSpecifies the directory that the server will use to read/write requested files. Default is the current directory when launching the application.";
                 break;
         }

@@ -9,22 +9,23 @@ import java.util.List;
  * This parent class creates a Request object.
  */
 public abstract class Request {
-    protected String host;
-    protected String path;
-    protected String query;
-    protected HTTPMethod method;
-    protected List<String> headers;
-    protected int port;
+    private String host;
+    private String path;
+    private String query;
+    private HTTPMethod method;
+    List<String> headers;
+    private int port;
+    private final int DEFAULT_PORT = 8080;
 
-    protected final String eol = "\r\n";
+    final String eol = "\r\n";
 
-    public Request(String host, String path, String query, HTTPMethod method, List<String> headers) {
+    Request(String host, String path, String query, HTTPMethod method, List<String> headers) {
         this.host = host;
         this.path = path;
         this.query = query == null ? "" : "?" + query;
         this.method = method;
         this.headers = headers;
-        this.port = 80;
+        this.port = DEFAULT_PORT;
     }
 
     public void sendRequest(PrintStream out) {
