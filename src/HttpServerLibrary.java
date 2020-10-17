@@ -4,16 +4,16 @@ import java.net.Socket;
 
 public class HttpServerLibrary {
     private ServerSocket serverSocket;
+
+    private boolean isVerbose;
     private int port;
-    private final int DEFAULT_PORT = 8080;
+    private String pathToDirectory;
 
-    public HttpServerLibrary(int port) {
+    public HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
+        this.isVerbose = isVerbose;
         this.port = port;
-        start();
-    }
+        this.pathToDirectory = pathToDirectory;
 
-    public HttpServerLibrary() {
-        this.port = DEFAULT_PORT;
         start();
     }
 

@@ -1,32 +1,41 @@
 import Helpers.HelpMessage;
+import picocli.CommandLine;
 
-public class Httpfs {
+import java.util.Arrays;
+import java.util.concurrent.Callable;
 
-    private static boolean isVerbose = false;
+@CommandLine.Command(name = "Httpfs")
+public class Httpfs implements Callable<Integer> {
+
+    @CommandLine.Option(names = "-v") boolean verbose;
+    @CommandLine.Option(names = "-p") int port = 8080;
+    @CommandLine.Option(names = "-d") String pathToDirectory = "/";
+    @CommandLine.Option(names = "help") boolean isHelpRequested;
+    @CommandLine.Unmatched String[] unmatchedValues;
 
     public static void main(String[] args) {
-        parseArgs(args);
-        new HttpServerLibrary();
+        Httpfs serverCli = new Httpfs();
+        int exit = new CommandLine(serverCli).execute(args);
+        System.exit(exit);
     }
 
-    // Parse the arguments given and initialize the server
-    private static void parseArgs(String[] args) {
-        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
 
-        if (args[0].equalsIgnoreCase("help")) {
-            System.out.print(HelpMessage.SERVER.getMessage());
-            System.exit(0);
+    @Override
+    public Integer call() throws Exception {
+        System.out.print("Parsing command line args ... ");
+//        System.out.print("\nverbose : " + verbose);
+//        System.out.print("\nport : " + port);
+//        System.out.print("\npath to directory : " + directoryPath);
+
+        if(unmatchedValues == null || unmatchedValues.length != 0) {
+            System.err.print(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
+            return 1;
         }
 
-        // can have verbose (debugging messages)
-        // can have the port
-        // can have directory
-
-    }
-
-    // Helper method to show the error message before exiting
-    private static void showErrorAndExit(String message) {
-        System.err.print(message + "\n");
-        System.exit(0);
+        if(isHelpRequested) {
+            System.out.print(HelpMessage.SERVER.getMessage());
+            return 0;
+        }
+        return 0;
     }
 }
