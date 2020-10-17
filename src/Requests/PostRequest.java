@@ -2,7 +2,6 @@ package Requests;
 
 import Helpers.HTTPMethod;
 
-import java.io.PrintStream;
 import java.util.List;
 
 /**
@@ -16,21 +15,7 @@ public class PostRequest extends Request {
         this.data = data;
     }
 
-    public void sendRequest(PrintStream out) {
-        //Send request line
-        super.sendRequest(out);
-
-        // Send request headers
-        out.print("Content-Length: " + this.data.length() + eol); // TODO: revoir
-        for (String header : this.headers) {
-            out.print(header + eol);
-        }
-
-        // Writing an empty line just to notify the server the header ends here
-        out.print(eol);
-
-        //Send data
-        out.print(this.data);
-        out.print(eol);
+    public String getData() {
+        return data;
     }
 }

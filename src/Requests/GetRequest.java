@@ -16,17 +16,6 @@ public class GetRequest extends Request implements Redirectable {
         super(host, path, query, HTTPMethod.GET, headers);
     }
 
-    public void sendRequest(PrintStream out) {
-        //Send request line
-        super.sendRequest(out);
-
-        //Send request headers
-        for (String header : headers) {
-            out.print(header + eol);
-        }
-        out.print(eol);
-    }
-
     @Override
     public Request getRedirectRequest(String redirectURI) {
         URL url = null;

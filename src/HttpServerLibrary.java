@@ -1,7 +1,6 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import Requests.Request;
+
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.logging.Level;
@@ -39,7 +38,7 @@ public class HttpServerLibrary {
 
                     // Read HTTP request from the client socket
                     logger.log(Level.INFO, "Reading client's request...");
-                    readRequest(in);
+                    createRequest(in);
 
                     // Prepare an HTTP response and send to the client
                     logger.log(Level.INFO, "Sending response to client...");
@@ -53,25 +52,21 @@ public class HttpServerLibrary {
     }
 
     // This method reads the requests sent by the client
-    private String readRequest(BufferedReader reader) throws IOException {
-        String line = reader.readLine(); // Status line
-        if (line.isEmpty()) {
-            showErrorAndExit("Bad request."); // TODO: change for an actual error code
-        }
+    //TODO: Do error handling
+    private Request createRequest(BufferedReader in) throws IOException {
+        //TODO: Create a request object
+        // - read the request line -> start extracting httpmethod, path
+        // - skip header lines [GET]
+        // - skip header lines except for content-length [POST]
+        // - read data in body for post
 
-        if (!line.isEmpty()) {
-            System.out.println(line);
-            line = reader.readLine();
-        }
+        String line = in.readLine(); // Status line
 
-        // 1st param will be either GET or POST
-        // If post, then must collect the content of the body of the POST request since that's what will be dumped into the file
+        // TODO: Parse request line
+        line = in.readLine();
 
-        // 2nd param will be file path
 
-        // 3rd param will be http version
-
-        return line;
+        return null;
     }
 
     // This method determines which type of response to create

@@ -1,3 +1,4 @@
+import Requests.PostRequest;
 import Requests.Redirectable;
 import Requests.Request;
 
@@ -18,6 +19,7 @@ public class HttpClientLibrary {
     private int redirectCounter = 0;
     private final static int REDIRECT_MAXIMUM = 5;
     private BufferedWriter writer;
+    private final static String EOL = "\r\n";
 
     public HttpClientLibrary(Request request, boolean isVerbose) {
         this(request, isVerbose, "");
@@ -38,41 +40,38 @@ public class HttpClientLibrary {
     }
 
     private void performRequest() {
-        openTCPConnection();
-        sendRequestToServer(request);
-        readResponse();
-        closeTCPConnection();
-    }
-
-    private void openTCPConnection() {
         try {
-            // Connect to the server
             clientSocket = new Socket(request.getHost(), request.getPort());
-
-            // Create input output streams to read and write to the server
             out = new PrintStream(clientSocket.getOutputStream());
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            sendRequest();
+            readResponse();
 
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            closeTCPConnection();
             System.exit(0);
         }
     }
 
-    private void closeTCPConnection() {
-        // Close streams
-        try {
-            in.close();
-            out.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(0);
-        }
-    }
+    public void sendRequest() {
+        out.print(request.getMethod().name() + " " + request.getPath() + request.getQuery() + " " + "HTTP/1.0" + EOL);
+        out.print("Host: " + request.getHost() + EOL);
 
-    private void sendRequestToServer(Request request) {
-        request.sendRequest(out);
+        // Send request headers
+        for (String header : request.getHeaders()) {
+            out.print(header + EOL);
+        }
+
+        // Writing an empty line just to notify the server the header ends here
+        out.print(EOL);
+
+        // Send data
+        if (request instanceof PostRequest) {
+            out.print(((PostRequest) request).getData());
+            out.print(EOL);
+        }
     }
 
     private void readResponse() {
@@ -124,12 +123,24 @@ public class HttpClientLibrary {
         }
     }
 
+    private void closeTCPConnection() {
+        // Close streams
+        try {
+            in.close();
+            out.close();
+            clientSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(0);
+        }
+    }
+
     private boolean shouldRedirect(String line) {
         boolean shouldRedirect = false;
         if (line != null) {
             String[] statusLineComponents = line.trim().split(" ");
             if (statusLineComponents.length >= 3) {
-                if(isVerbose) printLine(line);
+                if (isVerbose) printLine(line);
                 try {
                     int statusCode = Integer.parseInt(statusLineComponents[1]);
                     boolean isRedirectCode = statusCode == Redirectable.StatusCode.MOVED_PERMANENTLY.code ||
@@ -181,4 +192,5 @@ public class HttpClientLibrary {
         else
             System.out.println(line);
     }
+
 }

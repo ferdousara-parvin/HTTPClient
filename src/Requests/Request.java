@@ -15,9 +15,7 @@ public abstract class Request {
     private HTTPMethod method;
     List<String> headers;
     private int port;
-    private final int DEFAULT_PORT = 8080;
-
-    final String eol = "\r\n";
+    private final int DEFAULT_PORT = 80;
 
     Request(String host, String path, String query, HTTPMethod method, List<String> headers) {
         this.host = host;
@@ -28,9 +26,20 @@ public abstract class Request {
         this.port = DEFAULT_PORT;
     }
 
-    public void sendRequest(PrintStream out) {
-        out.print(this.method.name() + " " + this.path + this.query + " " + "HTTP/1.0" + eol);
-        out.print("Host: " + this.host + eol);
+    public List<String> getHeaders() {
+        return headers;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public HTTPMethod getMethod() {
+        return method;
     }
 
     public String getHost() {
