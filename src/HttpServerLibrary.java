@@ -1,7 +1,6 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Date;
 
 public class HttpServerLibrary {
     private ServerSocket serverSocket;
@@ -21,22 +20,23 @@ public class HttpServerLibrary {
     private void start() {
         try {
             serverSocket = new ServerSocket(port);
-            System.out.println("Listening for connection on port " + port + " ...."); // TODO: debugging message?
+            System.out.println("Listening on port " + port + " ...."); // TODO: debugging message
             while(true) {
 
                 // Client connects to server
+                // TODO: add timeout, 408 ERROR CODE
                 try (Socket socket = serverSocket.accept();
                      BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
-                    System.out.println("Client connected to server"); // TODO: debugging message?
+                    System.out.println("Client connected to server"); // TODO: debugging message
 
                     // Read HTTP request from the client socket
-                    System.out.println("Reading client's request..."); // TODO: debugging message?
+                    System.out.println("Reading client's request..."); // TODO: debugging message
                     readRequest(in);
 
                     // Prepare an HTTP response and send to the client
-                    System.out.println("Sending response to client..."); // TODO: debugging message?
+                    System.out.println("Sending response to client..."); // TODO: debugging message
                     sendResponse(out);
                 }
             }
@@ -48,9 +48,14 @@ public class HttpServerLibrary {
 
     // This method reads the requests sent by the client
     private String readRequest(BufferedReader reader) throws IOException {
-        String line = reader.readLine();
+        String line = reader.readLine(); // Status line
         if (line.isEmpty()) {
             showErrorAndExit("Bad request."); // TODO: change for an actual error code
+        }
+
+        if(!line.isEmpty()) {
+            System.out.println(line);
+            line = reader.readLine();
         }
 
         // 1st param will be either GET or POST

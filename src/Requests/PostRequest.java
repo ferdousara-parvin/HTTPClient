@@ -21,7 +21,7 @@ public class PostRequest extends Request {
         super.sendRequest(out);
 
         // Send request headers
-        out.print("Content-Length: " + this.data.length() + eol);
+        out.print("Content-Length: " + this.data.length() + eol); // TODO: revoir
         for (String header : this.headers) {
             out.print(header + eol);
         }
