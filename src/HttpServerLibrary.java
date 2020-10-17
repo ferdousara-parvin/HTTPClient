@@ -1,18 +1,24 @@
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class HttpServerLibrary {
-    private ServerSocket serverSocket;
+    private static Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
 
-    private boolean isVerbose;
+    private ServerSocket serverSocket;
     private int port;
     private String pathToDirectory;
 
     public HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
-        this.isVerbose = isVerbose;
         this.port = port;
         this.pathToDirectory = pathToDirectory;
+
+        logger.setLevel(isVerbose ? Level.INFO : Level.WARNING);
 
         start();
     }
@@ -20,8 +26,8 @@ public class HttpServerLibrary {
     private void start() {
         try {
             serverSocket = new ServerSocket(port);
-            System.out.println("Listening on port " + port + " ...."); // TODO: debugging message
-            while(true) {
+            logger.log(Level.INFO, "Listening on port " + port + " ....");
+            while (true) {
 
                 // Client connects to server
                 // TODO: add timeout, 408 ERROR CODE
@@ -29,14 +35,14 @@ public class HttpServerLibrary {
                      BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                      PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
-                    System.out.println("Client connected to server"); // TODO: debugging message
+                    logger.log(Level.INFO, "Client connected to server");
 
                     // Read HTTP request from the client socket
-                    System.out.println("Reading client's request..."); // TODO: debugging message
+                    logger.log(Level.INFO, "Reading client's request...");
                     readRequest(in);
 
                     // Prepare an HTTP response and send to the client
-                    System.out.println("Sending response to client..."); // TODO: debugging message
+                    logger.log(Level.INFO, "Sending response to client...");
                     sendResponse(out);
                 }
             }
@@ -53,7 +59,7 @@ public class HttpServerLibrary {
             showErrorAndExit("Bad request."); // TODO: change for an actual error code
         }
 
-        if(!line.isEmpty()) {
+        if (!line.isEmpty()) {
             System.out.println(line);
             line = reader.readLine();
         }
@@ -70,10 +76,9 @@ public class HttpServerLibrary {
 
     // This method determines which type of response to create
     private void sendResponse(PrintWriter out) {
-        if(true) { // GET request
+        if (true) { // GET request
             sendGetResponse(out);
-        }
-        else if (true) { // POST request
+        } else if (true) { // POST request
             sendPostResponse(out);
         }
     }

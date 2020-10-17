@@ -1,13 +1,12 @@
 import Helpers.HelpMessage;
 import picocli.CommandLine;
 
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 
 @CommandLine.Command(name = "Httpfs")
 public class Httpfs implements Callable<Integer> {
 
-    @CommandLine.Option(names = "-v") boolean verbose;
+    @CommandLine.Option(names = "-v") boolean isVerbose;
     @CommandLine.Option(names = "-p") int port = 8080;
     @CommandLine.Option(names = "-d") String pathToDirectory = "/";
     @CommandLine.Option(names = "help") boolean isHelpRequested;
@@ -16,6 +15,8 @@ public class Httpfs implements Callable<Integer> {
     public static void main(String[] args) {
         Httpfs serverCli = new Httpfs();
         int exit = new CommandLine(serverCli).execute(args);
+
+        new HttpServerLibrary(serverCli.isVerbose, serverCli.port, serverCli.pathToDirectory);
         System.exit(exit);
     }
 
@@ -27,8 +28,8 @@ public class Httpfs implements Callable<Integer> {
 //        System.out.print("\nport : " + port);
 //        System.out.print("\npath to directory : " + directoryPath);
 
-        if(unmatchedValues == null || unmatchedValues.length != 0) {
-            System.err.print(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
+        if(unmatchedValues != null) {
+            System.err.println(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
             return 1;
         }
 
