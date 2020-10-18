@@ -15,7 +15,7 @@ public abstract class Request {
     private HTTPMethod method;
     List<String> headers;
     private int port;
-    private final int DEFAULT_PORT = 80;
+    private final int DEFAULT_PORT = 8080;
 
     Request(String host, String path, String query, HTTPMethod method, List<String> headers) {
         this.host = host;

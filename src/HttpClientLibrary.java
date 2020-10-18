@@ -72,6 +72,7 @@ public class HttpClientLibrary {
             out.print(((PostRequest) request).getData());
             out.print(EOL);
         }
+        out.close();
     }
 
     private void readResponse() {
