@@ -1,4 +1,5 @@
 import Helpers.HTTPMethod;
+import Helpers.Status;
 import Requests.GetRequest;
 import Requests.PostRequest;
 import Requests.Request;
@@ -8,16 +9,17 @@ import java.net.*;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class HttpServerLibrary {
+class HttpServerLibrary {
     private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
+    private int port;
+    private Path baseDirectory;
 
-    private final int port;
-    private final Path baseDirectory;
-
-    public HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
+    HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
         this.port = port;
         this.baseDirectory = Paths.get(pathToDirectory).toAbsolutePath();
 
@@ -29,25 +31,30 @@ public class HttpServerLibrary {
     private void start() {
         try {
             ServerSocket serverSocket = new ServerSocket(port);
-            logger.log(Level.INFO, "Listening on port " + port + " ....");
+            logger.log(Level.INFO, "Listening on port " + port + " ...");
             while (true) {
+                Socket socket = serverSocket.accept();
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
-                // Client connects to server
-                // TODO: add timeout, 408 ERROR CODE
-                try (Socket socket = serverSocket.accept();
-                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+                logger.log(Level.INFO, "Client connected to server");
 
-                    logger.log(Level.INFO, "Client connected to server");
+                // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
 
-                    // Read HTTP request from the client socket
-                    logger.log(Level.INFO, "Reading client's request...");
-                    Request request = createRequest(in);
+//                // TODO: debugging purposes
+//                String line = in.readLine();
+//                while(line != null) {
+//                    System.out.println(line);
+//                    line = in.readLine();
+//                }
 
-                    // Prepare an HTTP response and send to the client
-                    logger.log(Level.INFO, "Sending response to client...");
-                    sendResponse(out, request);
-                }
+                logger.log(Level.INFO, "Reading client's request...");
+                Request request = createRequest(in);
+
+
+                logger.log(Level.INFO, "Sending response to client...");
+                sendResponse(out, request);
+
             }
 
         } catch (IOException e) {
@@ -57,100 +64,112 @@ public class HttpServerLibrary {
 
     // This method reads the requests sent by the client
     private Request createRequest(BufferedReader in) throws IOException {
-        //Components needed to create a request
+        // Parse request line
         HTTPMethod requestHttpMethod = null;
         Path path = null;
-        // int content-length
-        // String data
+        String httpVersion = "";
 
-        String line = in.readLine(); // Status line
-
-        //Extract url and http method from request line
-        String[] requestLineContents = line.split(" ");
+        String line = in.readLine();
 
         if (line != null) {
             String[] statusLineComponents = line.trim().split(" ");
             if (statusLineComponents.length >= 3) {
                 for (int position = 0; position < statusLineComponents.length; position++) {
-                    int METHOD_INDEX = 0;
-                    int URL_INDEX = 1;
-                    if (position == METHOD_INDEX)
-                        requestHttpMethod = getMethodFromRequest(statusLineComponents[METHOD_INDEX]);
-                    else if (position == URL_INDEX) {
+                    int methodIndex = 0;
+                    int urlIndex = 1;
+                    int httpVersionIndex = 2;
+                    if (position == methodIndex)
+                        requestHttpMethod = getMethodFromRequest(statusLineComponents[methodIndex]);
+                    else if (position == urlIndex) {
                         try {
-                            path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL_INDEX]);
+                            path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]);
                         } catch (InvalidPathException exception) {
-                            logger.log(Level.WARNING, "Request path is not valid!", exception);
-
+                            logger.log(Level.WARNING, "Request path is invalid!", exception);
+                            return null;
+//                            out.print(Status.BAD_REQUEST.toString());
                         }
+                    } else if (position == httpVersionIndex) {
+                        httpVersion = statusLineComponents[httpVersionIndex];
                     } else break;
                 }
             } else {
-                logger.log(Level.WARNING, "Request not formatted properly");
-                //TODO: Send response with malformed request code
+//                out.print(Status.BAD_REQUEST.toString());
                 return null;
             }
         } else {
-            logger.log(Level.WARNING, "Request line not present");
-            //TODO: Send response with malformed request code
+            logger.log(Level.WARNING, "No request sent to the server");
+            //TODO: Send response with malformed request code.
             return null;
         }
 
-        // Skip through all header lines
+        // Parse Headers
+        int contentLength = 0;
+        List<String> headers = new ArrayList<>();
         line = in.readLine();
-        while (line != null && !line.isEmpty() && !line.startsWith("{")) {
-            //TODO: Search headers for content-length if the method is POST
-//            if (POST && line.contains("Content-length:")) {
-//            }
+        while (line != null && !line.isEmpty()) {
+            headers.add(line);
+            if (line.contains("Content-Length:")) {
+                contentLength = Integer.parseInt(line.substring(15).trim());
+            }
             line = in.readLine();
         }
 
-        //TODO: Construct data from the request body
-        // Should we let the user know that it is weird for them to have a body with a GET request?
-        while (line != null) {
+        // Parse data
+        StringBuilder data = new StringBuilder();
+        if (requestHttpMethod.equals(HTTPMethod.POST)) {
             line = in.readLine();
+            StringBuilder allData = new StringBuilder();
+            while (line != null && !line.isEmpty()) {
+                allData.append(line);
+                line = in.readLine();
+            }
+
+            if (allData.length() > 0) {
+                if (contentLength == 0) {
+                    contentLength = allData.length();
+                }
+
+                data.append(allData.substring(0, contentLength-1));
+            }
         }
 
         switch (requestHttpMethod) {
             case GET:
-                return new GetRequest("", path == null ? null : path.toString(), "", null);
+                return new GetRequest("", path == null ? null : path.toString(), "", headers);
             case POST:
-//                return new PostRequest();
-                return null;
+                return new PostRequest("", path == null ? null : path.toString(), "", headers, data.toString());
             default:
+//                out.print(Status.NOT_IMPLEMENTED.toString());
                 return null;
         }
     }
 
     // This method determines which type of response to create
     private void sendResponse(PrintWriter out, Request request) throws IOException {
-        if (request instanceof GetRequest) { // GET request
+        if (request instanceof GetRequest) {
             sendGetResponse(out, (GetRequest) request);
-        } else if (request instanceof PostRequest) { // POST request
+        } else if (request instanceof PostRequest) {
             sendPostResponse(out);
         } else if (request == null) {
-            //TODO: What are the reasons for request to be null?
+            out.print(Status.BAD_REQUEST.toString());
         }
     }
 
     // This method constructs a get response
-    private void sendGetResponse(PrintWriter out, GetRequest getRequest) throws IOException {
-        // IF directory, then returns a list of the current files in the data directory
-        // IF file, then returns the content of the file in the data directory
-        // Stick with 1 format: simplest will be plaintext i think?
+    private void sendGetResponse(PrintWriter out, GetRequest getRequest) {
         if (getRequest.getPath() == null) {
-            //TODO: Show error + set the request status line
-            logger.log(Level.WARNING, "Requested Path was malformed");
+            logger.log(Level.WARNING, "Requested path was malformed");
+            out.print(Status.NOT_FOUND.toString());
         } else {
             File file = Paths.get(baseDirectory.toString(), getRequest.getPath()).toFile();
             if (file.isDirectory()) {
+                out.print(Status.OK.toString());
                 for (String child : file.list())
-                    //TODO: print to the outputstream
-                    System.out.println(child);
+                    out.println(child);
             } else {
                 String fileContent = extractContentFromFile(file.getAbsolutePath());
-                //TODO: print to the outputstream
-                System.out.println(fileContent);
+                out.print(Status.OK.toString());
+                out.println(fileContent);
             }
         }
     }
@@ -160,35 +179,28 @@ public class HttpServerLibrary {
         // should create OR overwrite the file specified by the method in the data directory with the content of the body of the request.
     }
 
-    // Helper method to show the error message before exiting
-    // TODO: change to display error codes instead
-    private static void showErrorAndExit(String message) {
-        System.err.print(message + "\n");
-        System.exit(0);
-    }
-
     private HTTPMethod getMethodFromRequest(String requestMethod) {
         if (requestMethod.equalsIgnoreCase(HTTPMethod.GET.name())) return HTTPMethod.GET;
         else if (requestMethod.equalsIgnoreCase(HTTPMethod.POST.name())) return HTTPMethod.POST;
         else {
-            logger.log(Level.WARNING, "Request method is unknown");
+//            out.print(Status.NOT_IMPLEMENTED.toString());
             return null;
         }
     }
 
-    // Helper method to extract data from a file given it's path
-    //TODO: Duplicate method (legit copy pasted) from HttpCli => reintroduce the HttpLibrary parent class?
+    // Helper method to extract data from a file given its path
     private static String extractContentFromFile(String filePath) {
+        System.out.println(filePath); // TODO: debugging purposes
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
 
-        try( BufferedReader br = new BufferedReader(new FileReader(file))) {
+        try(BufferedReader br = new BufferedReader(new FileReader(file))) {
             String content = "";
             while ((content = br.readLine()) != null)
                 data.append(content).append("\n");
         } catch (IOException exception) {
             logger.log(Level.WARNING, "Requested file was not found!", exception);
-            //TODO: Output status line with code 404 (Resource not found)
+//            out.print(Status.NOT_FOUND.toString());
         }
 
         return data.toString().trim();

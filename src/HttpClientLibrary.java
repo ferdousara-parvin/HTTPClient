@@ -46,10 +46,10 @@ public class HttpClientLibrary {
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             sendRequest();
             readResponse();
-
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
+            System.out.println("Closing connection ...");
             closeTCPConnection();
             System.exit(0);
         }
@@ -60,19 +60,18 @@ public class HttpClientLibrary {
         out.print("Host: " + request.getHost() + EOL);
 
         // Send request headers
-        for (String header : request.getHeaders()) {
-            out.print(header + EOL);
+        if(request.getHeaders().size() > 0) {
+            for (String header : request.getHeaders()) {
+                out.print(header + EOL);
+            }
         }
-
-        // Writing an empty line just to notify the server the header ends here
-        out.print(EOL);
 
         // Send data
         if (request instanceof PostRequest) {
-            out.print(((PostRequest) request).getData());
             out.print(EOL);
+            out.print(((PostRequest) request).getData() + EOL);
         }
-        out.close();
+        out.print(EOL);
     }
 
     private void readResponse() {
@@ -82,7 +81,9 @@ public class HttpClientLibrary {
 
             // Read status line and check if it is a redirect
             line = in.readLine();
-            boolean shouldRedirect = shouldRedirect(line);
+            printLine(line); // TODO: debug purposes
+
+            boolean shouldRedirect = false; //shouldRedirect(line); // TODO: comemnted it out b/c wasn't working properly
 
             // Parse through response headers
             line = in.readLine();
@@ -108,8 +109,6 @@ public class HttpClientLibrary {
             }
 
             // Print out response body
-
-            // To file
             while (line != null) {
                 printLine(line);
                 line = in.readLine();

@@ -19,22 +19,25 @@ public class Httpfs implements Callable<Integer> {
         Httpfs serverCli = new Httpfs();
         int exit = new CommandLine(serverCli).execute(args);
 
-        new HttpServerLibrary(serverCli.isVerbose, serverCli.port, serverCli.pathToDirectory);
-        System.exit(exit);
+        if (exit == 0)
+            new HttpServerLibrary(serverCli.isVerbose, serverCli.port, serverCli.pathToDirectory);
+        else
+            System.exit(exit);
     }
 
 
     @Override
-    public Integer call() throws Exception {
-        System.out.print("Parsing command line args ... ");
+    public Integer call() {
         if(unmatchedValues != null) {
             System.err.println(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
             return 1;
         }
+
         if(isHelpRequested) {
             System.out.print(HelpMessage.SERVER.getMessage());
-            return 0;
+            return 2;
         }
+
         return 0;
     }
 }
