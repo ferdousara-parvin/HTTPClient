@@ -1,8 +1,5 @@
 import Helpers.HTTPMethod;
 import Helpers.Status;
-import Requests.GetRequest;
-import Requests.PostRequest;
-import Requests.Request;
 import Responses.Response;
 
 import java.io.*;
@@ -16,13 +13,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 class HttpServerLibrary {
-    private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
     private int port;
     private Path baseDirectory;
 
     private Socket socket;
     private BufferedReader in;
     private PrintWriter out;
+
+    private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
+    private final String EOL = "\r\n";
 
     HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
         this.port = port;
@@ -54,9 +53,8 @@ class HttpServerLibrary {
                 continue;
             }
 
-            logger.log(Level.INFO, "Client connected to server");
-
             // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
+            logger.log(Level.INFO, "Client connected to server");
 
 //                // TODO: debugging purposes
 //                String line = in.readLine();
@@ -77,6 +75,7 @@ class HttpServerLibrary {
 
     // This method reads the requests sent by the client and creates a Response object
     private Response createResponse() {
+
         // Parse request line
         HTTPMethod requestHttpMethod = null;
         File file = null;
@@ -102,7 +101,7 @@ class HttpServerLibrary {
                             }
                         } else if (position == urlIndex) {
                             try {
-                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]); // TODO: how does it work?
+                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]); // TODO: how does it work? Can we have a null Path?
                                 file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
                             } catch (InvalidPathException exception) {
                                 logger.log(Level.WARNING, "Request path is invalid!", exception);
@@ -127,18 +126,12 @@ class HttpServerLibrary {
             }
 
             // Parse Headers
-            List<String> headers = new ArrayList<>();
+            List<String> clientHeaders = new ArrayList<>();
             line = in.readLine();
             while (line != null && !line.isEmpty()) {
-                headers.add(line);
+                clientHeaders.add(line);
                 line = in.readLine();
             }
-
-            // TODO: remove from here
-//            if (line.contains("Content-Length:")) {
-//                contentLength = Integer.parseInt(line.substring(line.indexOf(":") + 1).trim());
-//            }
-//            // TODO: if statements for content-type and content disposition
 
             // Parse data (for POST)
             StringBuilder data = new StringBuilder();
@@ -152,7 +145,7 @@ class HttpServerLibrary {
             }
 
             status = Status.OK;
-            return new Response(requestHttpMethod, status, headers, data.toString(), file);
+            return new Response(requestHttpMethod, status, clientHeaders, data.toString(), file);
 
         } catch (IOException exception) {
             return new Response(Status.INTERNAL_SERVER_ERROR);
@@ -167,33 +160,57 @@ class HttpServerLibrary {
             sendPostResponse(response);
         } else {
             out.print(response.getStatusLine());
-            out.print("\r\n");
+            out.print(EOL);
         }
     }
 
     // This method constructs a get response
     private void sendGetResponse(Response response) {
+        // Populate data to send back
         File file = response.getFile();
         if (file.isDirectory()) {
-            out.print(Status.OK.toString());
             String[] children = file.list();
             if (children != null) {
                 for (String child : children)
-                    out.println(child);
+                    response.setData(response.getData() + child + "\n");
             }
             else
-                out.print("No files inside");
+                response.setData("No files in the directory.");
         } else {
-            String fileContent = extractContentFromFile(file.getAbsolutePath());
-            out.print(Status.OK.toString());
-            out.println(fileContent);
+            String fileContent = extractContentFromFile(file.getAbsolutePath(), response);
+            response.setData(fileContent);
         }
 
+        // TODO: Go through client headers for content-length, content-type, content disposition
+
+        // Output response to client
+        out.print(response.getStatusLine());
+        if (!response.getStatus().equals(Status.NOT_FOUND)) { // TODO: NOT_FOUND is set in extractContentFromFile() if file cannot be open. Not sure if best place to do it.
+            // TODO: Send a proper GET response message
+        }
+        out.print(EOL);
     }
 
     // This method constructs a post response
     private void sendPostResponse(Response response) {
-        // should create OR overwrite the file specified by the method in the data directory with the content of the body of the request.
+        // TODO: should create OR overwrite the file specified by the method in the data directory with the content of the body of the request.
+
+        // Get Content-Length
+        int contentLength = response.getData().length();
+        for(String header: response.getClientHeaders()) {
+            if (header.contains("Content-Length:")) {
+                contentLength = Integer.parseInt(header.substring(header.indexOf(":") + 1).trim());
+            }
+        }
+
+        // TODO: Output data to file
+
+
+        // Output response to client
+        out.print(response.getStatusLine());
+        out.print("Server: localhost"); // TODO: correct?
+        out.print("Content-Length: " + contentLength);
+        out.print(EOL);
     }
 
     private HTTPMethod getMethodFromRequest(String requestMethod) {
@@ -204,8 +221,8 @@ class HttpServerLibrary {
     }
 
     // Helper method to extract data from a file given its path
-    private static String extractContentFromFile(String filePath) {
-        System.out.println(filePath); // TODO: debugging purposes
+    private static String extractContentFromFile(String filePath, Response response) {
+        System.out.println("File path: " + filePath); // TODO: debugging purposes, remove later
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
 
@@ -215,7 +232,7 @@ class HttpServerLibrary {
                 data.append(content).append("\n");
         } catch (IOException exception) {
             logger.log(Level.WARNING, "Requested file was not found!", exception);
-//            out.print(Status.NOT_FOUND.toString());
+            response.setStatus(Status.NOT_FOUND);
         }
 
         return data.toString().trim();

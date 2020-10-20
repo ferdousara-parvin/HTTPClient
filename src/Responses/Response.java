@@ -8,7 +8,7 @@ import java.util.List;
 
 public class Response {
     private Status status;
-    private List<String> headers;
+    private List<String> clientHeaders;
     private String data;
     private File file;
     private HTTPMethod httpMethod;
@@ -22,7 +22,7 @@ public class Response {
     public Response(HTTPMethod httpMethod, Status status, List<String> headers, String data, File file) {
         this.httpMethod = httpMethod;
         this.status = status;
-        this.headers = headers;
+        this.clientHeaders = headers;
         this.data = data;
         this.file = file;
     }
@@ -39,12 +39,12 @@ public class Response {
         this.status = status;
     }
 
-    public List<String> getHeaders() {
-        return headers;
+    public List<String> getClientHeaders() {
+        return clientHeaders;
     }
 
-    public void setHeaders(List<String> headers) {
-        this.headers = headers;
+    public void setClientHeaders(List<String> clientHeaders) {
+        this.clientHeaders = clientHeaders;
     }
 
     public String getData() {
