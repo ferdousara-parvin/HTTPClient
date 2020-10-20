@@ -10,7 +10,9 @@ public enum Status {
     FORBIDDEN(403, "Forbidden"),
     NOT_FOUND(404, "Not Found"),
     REQUEST_TIMEOUT(408, "Request Timeout"),
-    NOT_IMPLEMENTED(501, "Not Implemented");
+    INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
+    NOT_IMPLEMENTED(501, "Not Implemented"),
+    HTTP_VERSION_NOT_SUPPORTED(505, "HTTP Version Not Supported");
 
     final int code;
     final String description;
@@ -22,6 +24,6 @@ public enum Status {
 
     @Override
     public String toString() {
-        return this.code + " " + this.description + "\r\n";
+        return this.code + " " + this.description;
     }
 }

@@ -3,6 +3,7 @@ import Helpers.Status;
 import Requests.GetRequest;
 import Requests.PostRequest;
 import Requests.Request;
+import Responses.Response;
 
 import java.io.*;
 import java.net.*;
@@ -19,6 +20,10 @@ class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
 
+    private Socket socket;
+    private BufferedReader in;
+    private PrintWriter out;
+
     HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
         this.port = port;
         this.baseDirectory = Paths.get(pathToDirectory).toAbsolutePath();
@@ -29,17 +34,29 @@ class HttpServerLibrary {
     }
 
     private void start() {
+        ServerSocket serverSocket = null;
         try {
-            ServerSocket serverSocket = new ServerSocket(port);
-            logger.log(Level.INFO, "Listening on port " + port + " ...");
-            while (true) {
-                Socket socket = serverSocket.accept();
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            serverSocket = new ServerSocket(port);
+        } catch (IOException exception) {
+            logger.log(Level.WARNING, "Server socket was unable to be initialized", exception);
+            System.exit(3);
+        }
 
-                logger.log(Level.INFO, "Client connected to server");
+        logger.log(Level.INFO, "Listening on port " + port + " ...");
 
-                // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
+        while (true) {
+            try {
+                socket = serverSocket.accept();
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out = new PrintWriter(socket.getOutputStream(), true);
+            } catch (IOException exception) {
+                logger.log(Level.WARNING, "Server socket was unable to connect to the client", exception);
+                continue;
+            }
+
+            logger.log(Level.INFO, "Client connected to server");
+
+            // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
 
 //                // TODO: debugging purposes
 //                String line = in.readLine();
@@ -48,144 +65,142 @@ class HttpServerLibrary {
 //                    line = in.readLine();
 //                }
 
-                logger.log(Level.INFO, "Reading client's request...");
-                Request request = createRequest(in);
+            logger.log(Level.INFO, "Reading client's request...");
+            Response response = createResponse();
 
+            logger.log(Level.INFO, "Sending response to client...");
+            sendResponse(response);
 
-                logger.log(Level.INFO, "Sending response to client...");
-                sendResponse(out, request);
-
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
+            closeTCPConnection();
         }
     }
 
-    // This method reads the requests sent by the client
-    private Request createRequest(BufferedReader in) throws IOException {
+    // This method reads the requests sent by the client and creates a Response object
+    private Response createResponse() {
         // Parse request line
         HTTPMethod requestHttpMethod = null;
-        Path path = null;
+        File file = null;
         String httpVersion = "";
+        Status status;
 
-        String line = in.readLine();
+        String line;
+        try {
+            line = in.readLine();
 
-        if (line != null) {
-            String[] statusLineComponents = line.trim().split(" ");
-            if (statusLineComponents.length >= 3) {
-                for (int position = 0; position < statusLineComponents.length; position++) {
-                    int methodIndex = 0;
-                    int urlIndex = 1;
-                    int httpVersionIndex = 2;
-                    if (position == methodIndex)
-                        requestHttpMethod = getMethodFromRequest(statusLineComponents[methodIndex]);
-                    else if (position == urlIndex) {
-                        try {
-                            path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]);
-                        } catch (InvalidPathException exception) {
-                            logger.log(Level.WARNING, "Request path is invalid!", exception);
-                            return null;
-//                            out.print(Status.BAD_REQUEST.toString());
+            if (line != null) {
+                String[] statusLineComponents = line.trim().split(" ");
+                if (statusLineComponents.length == 3) {
+                    // TODO: do switch case
+                    for (int position = 0; position < statusLineComponents.length; position++) {
+                        int methodIndex = 0;
+                        int urlIndex = 1;
+                        int httpVersionIndex = 2;
+                        if (position == methodIndex) {
+                            requestHttpMethod = getMethodFromRequest(statusLineComponents[methodIndex]);
+                            if (requestHttpMethod == null) {
+                                return new Response(Status.NOT_IMPLEMENTED);
+                            }
+                        } else if (position == urlIndex) {
+                            try {
+                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]); // TODO: how does it work?
+                                file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
+                            } catch (InvalidPathException exception) {
+                                logger.log(Level.WARNING, "Request path is invalid!", exception);
+                                return new Response(Status.BAD_REQUEST);
+                            }
+                        } else {
+                            httpVersion = statusLineComponents[httpVersionIndex];
+                            if (!(httpVersion.equalsIgnoreCase("HTTP/1.0" ) || httpVersion.equalsIgnoreCase("HTTP/1.1"))) {
+                                return new Response(Status.BAD_REQUEST);
+                            }
+
+                            if (httpVersion.equalsIgnoreCase("HTTP/1.1")) {
+                                return new Response(Status.HTTP_VERSION_NOT_SUPPORTED);
+                            }
                         }
-                    } else if (position == httpVersionIndex) {
-                        httpVersion = statusLineComponents[httpVersionIndex];
-                    } else break;
+                    }
+                } else {
+                    return new Response(Status.BAD_REQUEST);
                 }
             } else {
-//                out.print(Status.BAD_REQUEST.toString());
-                return null;
+                return new Response(Status.BAD_REQUEST);
             }
-        } else {
-            logger.log(Level.WARNING, "No request sent to the server");
-            //TODO: Send response with malformed request code.
-            return null;
-        }
 
-        // Parse Headers
-        int contentLength = 0;
-        List<String> headers = new ArrayList<>();
-        line = in.readLine();
-        while (line != null && !line.isEmpty()) {
-            headers.add(line);
-            if (line.contains("Content-Length:")) {
-                contentLength = Integer.parseInt(line.substring(15).trim());
-            }
+            // Parse Headers
+            List<String> headers = new ArrayList<>();
             line = in.readLine();
-        }
-
-        // Parse data
-        StringBuilder data = new StringBuilder();
-        if (requestHttpMethod.equals(HTTPMethod.POST)) {
-            line = in.readLine();
-            StringBuilder allData = new StringBuilder();
             while (line != null && !line.isEmpty()) {
-                allData.append(line);
+                headers.add(line);
                 line = in.readLine();
             }
 
-            if (allData.length() > 0) {
-                if (contentLength == 0) {
-                    contentLength = allData.length();
+            // TODO: remove from here
+//            if (line.contains("Content-Length:")) {
+//                contentLength = Integer.parseInt(line.substring(line.indexOf(":") + 1).trim());
+//            }
+//            // TODO: if statements for content-type and content disposition
+
+            // Parse data (for POST)
+            StringBuilder data = new StringBuilder();
+            if (requestHttpMethod.equals(HTTPMethod.POST)) {
+                line = in.readLine();
+                while (line != null && !line.isEmpty()) {
+                    data.append(line);
+                    data.append("\n");
+                    line = in.readLine();
                 }
-
-                data.append(allData.substring(0, contentLength-1));
             }
-        }
 
-        switch (requestHttpMethod) {
-            case GET:
-                return new GetRequest("", path == null ? null : path.toString(), "", headers);
-            case POST:
-                return new PostRequest("", path == null ? null : path.toString(), "", headers, data.toString());
-            default:
-//                out.print(Status.NOT_IMPLEMENTED.toString());
-                return null;
+            status = Status.OK;
+            return new Response(requestHttpMethod, status, headers, data.toString(), file);
+
+        } catch (IOException exception) {
+            return new Response(Status.INTERNAL_SERVER_ERROR);
         }
     }
 
     // This method determines which type of response to create
-    private void sendResponse(PrintWriter out, Request request) throws IOException {
-        if (request instanceof GetRequest) {
-            sendGetResponse(out, (GetRequest) request);
-        } else if (request instanceof PostRequest) {
-            sendPostResponse(out);
-        } else if (request == null) {
-            out.print(Status.BAD_REQUEST.toString());
+    private void sendResponse(Response response) {
+        if (response.getHttpMethod().equals(HTTPMethod.GET)) {
+            sendGetResponse(response);
+        } else if (response.getHttpMethod().equals(HTTPMethod.POST)) {
+            sendPostResponse(response);
+        } else {
+            out.print(response.getStatusLine());
+            out.print("\r\n");
         }
     }
 
     // This method constructs a get response
-    private void sendGetResponse(PrintWriter out, GetRequest getRequest) {
-        if (getRequest.getPath() == null) {
-            logger.log(Level.WARNING, "Requested path was malformed");
-            out.print(Status.NOT_FOUND.toString());
-        } else {
-            File file = Paths.get(baseDirectory.toString(), getRequest.getPath()).toFile();
-            if (file.isDirectory()) {
-                out.print(Status.OK.toString());
-                for (String child : file.list())
+    private void sendGetResponse(Response response) {
+        File file = response.getFile();
+        if (file.isDirectory()) {
+            out.print(Status.OK.toString());
+            String[] children = file.list();
+            if (children != null) {
+                for (String child : children)
                     out.println(child);
-            } else {
-                String fileContent = extractContentFromFile(file.getAbsolutePath());
-                out.print(Status.OK.toString());
-                out.println(fileContent);
             }
+            else
+                out.print("No files inside");
+        } else {
+            String fileContent = extractContentFromFile(file.getAbsolutePath());
+            out.print(Status.OK.toString());
+            out.println(fileContent);
         }
+
     }
 
     // This method constructs a post response
-    private void sendPostResponse(PrintWriter out) {
+    private void sendPostResponse(Response response) {
         // should create OR overwrite the file specified by the method in the data directory with the content of the body of the request.
     }
 
     private HTTPMethod getMethodFromRequest(String requestMethod) {
         if (requestMethod.equalsIgnoreCase(HTTPMethod.GET.name())) return HTTPMethod.GET;
         else if (requestMethod.equalsIgnoreCase(HTTPMethod.POST.name())) return HTTPMethod.POST;
-        else {
-//            out.print(Status.NOT_IMPLEMENTED.toString());
+        else
             return null;
-        }
     }
 
     // Helper method to extract data from a file given its path
@@ -194,7 +209,7 @@ class HttpServerLibrary {
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
 
-        try(BufferedReader br = new BufferedReader(new FileReader(file))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String content = "";
             while ((content = br.readLine()) != null)
                 data.append(content).append("\n");
@@ -204,5 +219,15 @@ class HttpServerLibrary {
         }
 
         return data.toString().trim();
+    }
+
+    private void closeTCPConnection() {
+        try {
+            in.close();
+            out.close();
+            socket.close();
+        } catch (IOException exception) {
+            logger.log(Level.WARNING, "Server was unable to close the connection with the client", exception);
+        }
     }
 }
