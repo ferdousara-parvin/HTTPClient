@@ -69,6 +69,7 @@ class HttpServerLibrary {
             logger.log(Level.INFO, "Sending response to client...");
             sendResponse(response);
 
+            logger.log(Level.INFO, "Closing connection...");
             closeTCPConnection();
         }
     }
