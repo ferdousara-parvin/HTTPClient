@@ -69,7 +69,7 @@ class HttpServerLibrary {
             logger.log(Level.INFO, "Sending response to client...");
             sendResponse(response);
 
-            logger.log(Level.INFO, "Closing connection...");
+            logger.log(Level.INFO, "Server closing connection...");
             closeTCPConnection();
         }
     }
@@ -110,7 +110,7 @@ class HttpServerLibrary {
                             }
                         } else {
                             httpVersion = statusLineComponents[httpVersionIndex];
-                            if (!(httpVersion.equalsIgnoreCase("HTTP/1.0" ) || httpVersion.equalsIgnoreCase("HTTP/1.1"))) {
+                            if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1"))) {
                                 return new Response(Status.BAD_REQUEST);
                             }
 
@@ -155,63 +155,50 @@ class HttpServerLibrary {
 
     // This method determines which type of response to create
     private void sendResponse(Response response) {
-        if (response.getHttpMethod().equals(HTTPMethod.GET)) {
-            sendGetResponse(response);
-        } else if (response.getHttpMethod().equals(HTTPMethod.POST)) {
-            sendPostResponse(response);
-        } else {
-            out.print(response.getStatusLine());
-            out.print(EOL);
+        switch(response.getHttpMethod()) {
+            case GET:
+                performGet(response);
+                break;
+            case POST:
+                performPost(response);
+                break;
         }
+
+        out.print(response.getResponse());
+        out.flush();
     }
 
     // This method constructs a get response
-    private void sendGetResponse(Response response) {
+    private void performGet(Response response) {
         // Populate data to send back
+        StringBuilder data = new StringBuilder();
         File file = response.getFile();
-        if (file.isDirectory()) {
+        if (file.isDirectory()) { // Directory
             String[] children = file.list();
             if (children != null) {
                 for (String child : children)
-                    response.setData(response.getData() + child + "\n");
-            }
-            else
+                    data.append(child + "\n");
+                response.setData(data.toString());
+            } else
                 response.setData("No files in the directory.");
-        } else {
+        } else { // File
             String fileContent = extractContentFromFile(file.getAbsolutePath(), response);
+            if (fileContent == null) {
+                response.setStatus(Status.NOT_FOUND);
+            }
             response.setData(fileContent);
         }
-
-        // TODO: Go through client headers for content-length, content-type, content disposition
-
-        // Output response to client
-        out.print(response.getStatusLine());
-        if (!response.getStatus().equals(Status.NOT_FOUND)) { // TODO: NOT_FOUND is set in extractContentFromFile() if file cannot be open. Not sure if best place to do it.
-            // TODO: Send a proper GET response message
-        }
-        out.print(EOL);
     }
 
     // This method constructs a post response
-    private void sendPostResponse(Response response) {
-        // TODO: should create OR overwrite the file specified by the method in the data directory with the content of the body of the request.
-
-        // Get Content-Length
-        int contentLength = response.getData().length();
-        for(String header: response.getClientHeaders()) {
-            if (header.contains("Content-Length:")) {
-                contentLength = Integer.parseInt(header.substring(header.indexOf(":") + 1).trim());
-            }
+    private void performPost(Response response) {
+        // Output data to file
+        try(BufferedWriter writer  = new BufferedWriter(new FileWriter(response.getFile()))) { // TODO: verify if works properly
+            writer.write(response.getData());
+        } catch (IOException e) {
+            e.printStackTrace();
+            response.setStatus(Status.NOT_FOUND);
         }
-
-        // TODO: Output data to file
-
-
-        // Output response to client
-        out.print(response.getStatusLine());
-        out.print("Server: localhost"); // TODO: correct?
-        out.print("Content-Length: " + contentLength);
-        out.print(EOL);
     }
 
     private HTTPMethod getMethodFromRequest(String requestMethod) {
@@ -233,7 +220,7 @@ class HttpServerLibrary {
                 data.append(content).append("\n");
         } catch (IOException exception) {
             logger.log(Level.WARNING, "Requested file was not found!", exception);
-            response.setStatus(Status.NOT_FOUND);
+            return null;
         }
 
         return data.toString().trim();

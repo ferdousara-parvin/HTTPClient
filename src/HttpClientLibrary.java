@@ -49,7 +49,7 @@ public class HttpClientLibrary {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            System.out.println("Closing connection ...");
+            System.out.println("Client closing connection ...");
             closeTCPConnection();
             System.exit(0);
         }
@@ -78,7 +78,6 @@ public class HttpClientLibrary {
         String line = "";
 
         try {
-
             // Read status line and check if it is a redirect
             line = in.readLine();
             printLine(line); // TODO: debug purposes
