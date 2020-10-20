@@ -1,4 +1,4 @@
-package Requests;
+package Client.Requests;
 
 import Helpers.HTTPMethod;
 

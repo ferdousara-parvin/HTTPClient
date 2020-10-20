@@ -1,3 +1,5 @@
+package Server;
+
 import Helpers.HelpMessage;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -6,35 +8,41 @@ import picocli.CommandLine.Unmatched;
 
 import java.util.concurrent.Callable;
 
-@Command(name = "Httpfs")
+/**
+ * This class acts as the command line interface. It parses the server initialization and generates a HttpServerLibrary object.
+ */
+@Command(name = "Server.Httpfs")
 public class Httpfs implements Callable<Integer> {
 
-    @Option(names = "-v") boolean isVerbose;
-    @Option(names = "-p") int port = 8080;
-    @Option(names = "-d") String pathToDirectory = "";
-    @Option(names = "help") boolean isHelpRequested;
-    @Unmatched String[] unmatchedValues;
+    @Option(names = "-v") private boolean isVerbose;
+    @Option(names = "-p") private int port = 8080;
+    @Option(names = "-d") private String pathToDirectory = "";
+    @Option(names = "help") private boolean isHelpRequested;
+    @Unmatched private String[] unmatchedValues;
 
     public static void main(String[] args) {
         Httpfs serverCli = new Httpfs();
         int exit = new CommandLine(serverCli).execute(args);
 
-        new HttpServerLibrary(serverCli.isVerbose, serverCli.port, serverCli.pathToDirectory);
-        System.exit(exit);
+        if (exit == 0)
+            new HttpServerLibrary(serverCli.isVerbose, serverCli.port, serverCli.pathToDirectory);
+        else
+            System.exit(exit);
     }
 
 
     @Override
-    public Integer call() throws Exception {
-        System.out.print("Parsing command line args ... ");
+    public Integer call() {
         if(unmatchedValues != null) {
             System.err.println(HelpMessage.INCORRECT_PARAM_HTTPFS.getMessage());
             return 1;
         }
+
         if(isHelpRequested) {
             System.out.print(HelpMessage.SERVER.getMessage());
-            return 0;
+            return 2;
         }
+
         return 0;
     }
 }

@@ -1,6 +1,8 @@
-import Requests.PostRequest;
-import Requests.Redirectable;
-import Requests.Request;
+package Client;
+
+import Client.Requests.PostRequest;
+import Client.Requests.Redirectable;
+import Client.Requests.Request;
 
 import java.io.*;
 import java.net.Socket;
@@ -46,7 +48,6 @@ public class HttpClientLibrary {
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             sendRequest();
             readResponse();
-
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -55,34 +56,33 @@ public class HttpClientLibrary {
         }
     }
 
-    public void sendRequest() {
+    private void sendRequest() {
         out.print(request.getMethod().name() + " " + request.getPath() + request.getQuery() + " " + "HTTP/1.0" + EOL);
         out.print("Host: " + request.getHost() + EOL);
 
         // Send request headers
-        for (String header : request.getHeaders()) {
-            out.print(header + EOL);
+        if(request.getHeaders().size() > 0) {
+            for (String header : request.getHeaders()) {
+                out.print(header + EOL);
+            }
         }
-
-        // Writing an empty line just to notify the server the header ends here
-        out.print(EOL);
 
         // Send data
         if (request instanceof PostRequest) {
-            out.print(((PostRequest) request).getData());
             out.print(EOL);
+            out.print(((PostRequest) request).getData() + EOL);
         }
-        out.close();
+        out.print(EOL);
     }
 
     private void readResponse() {
         String line = "";
 
         try {
-
             // Read status line and check if it is a redirect
             line = in.readLine();
-            boolean shouldRedirect = shouldRedirect(line);
+
+            boolean shouldRedirect = false; //shouldRedirect(line); // TODO: comemnted it out b/c wasn't working properly
 
             // Parse through response headers
             line = in.readLine();
@@ -108,8 +108,6 @@ public class HttpClientLibrary {
             }
 
             // Print out response body
-
-            // To file
             while (line != null) {
                 printLine(line);
                 line = in.readLine();
