@@ -1,4 +1,4 @@
-package Responses;
+package Server.Responses;
 
 import Helpers.HTTPMethod;
 import Helpers.Status;
@@ -7,6 +7,9 @@ import java.io.File;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * This class creates a Response object.
+ */
 public class Response {
     private Status status;
     private List<String> clientHeaders;
@@ -44,11 +47,11 @@ public class Response {
         return response.toString();
     }
 
-    public String getStatusLine() {
-        return HTTP_VERSION + " " + status + "\r\n"; // TODO: add toString()?
+    private String getStatusLine() {
+        return HTTP_VERSION + " " + status + "\r\n";
     }
 
-    public int getContentLength() {
+    private int getContentLength() {
         int contentLength = data.length();
         for (String header : clientHeaders) {
             if (header.contains("Content-Length:")) {
@@ -59,7 +62,7 @@ public class Response {
         return contentLength;
     }
 
-    public String getServerHeaders() { // TODO: check date good format?
+    private String getServerHeaders() {
         return "Server: localhost" + EOL +
                 "Date: " + new Date() + EOL +
                 (status == Status.OK ? "Content-Length: " + this.getContentLength() + EOL : "");
@@ -71,14 +74,6 @@ public class Response {
 
     public void setStatus(Status status) {
         this.status = status;
-    }
-
-    public List<String> getClientHeaders() {
-        return clientHeaders;
-    }
-
-    public void setClientHeaders(List<String> clientHeaders) {
-        this.clientHeaders = clientHeaders;
     }
 
     public String getData() {
@@ -99,10 +94,6 @@ public class Response {
 
     public HTTPMethod getHttpMethod() {
         return httpMethod;
-    }
-
-    public void setHttpMethod(HTTPMethod httpMethod) {
-        this.httpMethod = httpMethod;
     }
 
 }

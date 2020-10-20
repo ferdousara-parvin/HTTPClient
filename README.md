@@ -1,4 +1,4 @@
-# HttpClientLibrary
+# Client.HttpClientLibrary
 COMP 445 -- Lab Assignment 1: Implement a simple HTTP client application
 
 Directives: [Directives.pdf](https://github.com/viveanban/HTTPClient/blob/master/Directives.pdf)
@@ -14,39 +14,39 @@ Directives: [Directives.pdf](https://github.com/viveanban/HTTPClient/blob/master
 
 ```
 Post with both -d and -f options
-java HttpCli post -h Content-Type:application/json -d '{\"Assignment\": 1}' -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
+java Client.HttpCli post -h Content-Type:application/json -d '{\"Assignment\": 1}' -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
 ```
 ```
 Get with -f option
-java HttpCli get -h Content-Type:application/json -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
+java Client.HttpCli get -h Content-Type:application/json -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
 ```
 ```
 Post with -d option
-java HttpCli post -h Content-Type:application/json -d '{\"Assignment\": 1}' "http://httpbin.org/post"
+java Client.HttpCli post -h Content-Type:application/json -d '{\"Assignment\": 1}' "http://httpbin.org/post"
 ```
 
 ```
 Post with -f option
-java HttpCli post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\input.txt "http://httpbin.org/post"
-java HttpCli post -h Content-Type:application/json -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
+java Client.HttpCli post -h Content-Type:application/json -f C:\Users\tlgmz\Desktop\input.txt "http://httpbin.org/post"
+java Client.HttpCli post -h Content-Type:application/json -f C:\Users\Viveka\Desktop\input.txt "http://httpbin.org/post"
 ```
 
 ```
 Get with Query Params
-java HttpCli get -v https://httpbin.org/get?course=COMP+445
+java Client.HttpCli get -v https://httpbin.org/get?course=COMP+445
 ```
 
 ```
 Get with -o option
-java HttpCli get -v -o "C:\Users\tlgmz\Desktop\output.txt" "http://httpbin.org/get?course=networking&assignment=1"
-java HttpCli get -v -o "C:\Users\Viveka\Desktop\output.txt" "http://httpbin.org/get?course=networking&assignment=1"
+java Client.HttpCli get -v -o "C:\Users\tlgmz\Desktop\output.txt" "http://httpbin.org/get?course=networking&assignment=1"
+java Client.HttpCli get -v -o "C:\Users\Viveka\Desktop\output.txt" "http://httpbin.org/get?course=networking&assignment=1"
 ```
 ```
 Get with multiple headers
-java HttpCli get -h Content-Type:application/json -h Connection:keep-alive "https://httpbin.org/get?course=COMP+445"
+java Client.HttpCli get -h Content-Type:application/json -h Connection:keep-alive "https://httpbin.org/get?course=COMP+445"
 ```
 ```
 Get with redirect
-java HttpCli get -v "http://www.wikipedia.net/"
-java HttpCli get -v http://concordia.ca/
+java Client.HttpCli get -v "http://www.wikipedia.net/"
+java Client.HttpCli get -v http://concordia.ca/
 ```

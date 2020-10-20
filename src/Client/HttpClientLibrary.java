@@ -1,6 +1,8 @@
-import Requests.PostRequest;
-import Requests.Redirectable;
-import Requests.Request;
+package Client;
+
+import Client.Requests.PostRequest;
+import Client.Requests.Redirectable;
+import Client.Requests.Request;
 
 import java.io.*;
 import java.net.Socket;
@@ -49,13 +51,12 @@ public class HttpClientLibrary {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            System.out.println("Client closing connection ...");
             closeTCPConnection();
             System.exit(0);
         }
     }
 
-    public void sendRequest() {
+    private void sendRequest() {
         out.print(request.getMethod().name() + " " + request.getPath() + request.getQuery() + " " + "HTTP/1.0" + EOL);
         out.print("Host: " + request.getHost() + EOL);
 
@@ -80,7 +81,6 @@ public class HttpClientLibrary {
         try {
             // Read status line and check if it is a redirect
             line = in.readLine();
-            printLine(line); // TODO: debug purposes
 
             boolean shouldRedirect = false; //shouldRedirect(line); // TODO: comemnted it out b/c wasn't working properly
 

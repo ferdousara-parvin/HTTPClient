@@ -1,8 +1,7 @@
-package Requests;
+package Client.Requests;
 
 import Helpers.HTTPMethod;
 
-import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;

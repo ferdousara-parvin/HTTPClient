@@ -1,8 +1,10 @@
+package Client;
+
 import Helpers.HTTPMethod;
 import Helpers.HelpMessage;
-import Requests.GetRequest;
-import Requests.PostRequest;
-import Requests.Request;
+import Client.Requests.GetRequest;
+import Client.Requests.PostRequest;
+import Client.Requests.Request;
 
 import java.io.*;
 import java.net.MalformedURLException;

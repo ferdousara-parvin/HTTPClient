@@ -1,6 +1,8 @@
+package Server;
+
 import Helpers.HTTPMethod;
 import Helpers.Status;
-import Responses.Response;
+import Server.Responses.Response;
 
 import java.io.*;
 import java.net.*;
@@ -12,6 +14,9 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * This class is the server library. It takes care of opening the TCP connection, reading the request and sending the response.
+ */
 class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
@@ -21,7 +26,6 @@ class HttpServerLibrary {
     private PrintWriter out;
 
     private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
-    private final String EOL = "\r\n";
 
     HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
         this.port = port;
@@ -55,13 +59,6 @@ class HttpServerLibrary {
 
             // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
             logger.log(Level.INFO, "Client connected to server");
-
-//                // TODO: debugging purposes
-//                String line = in.readLine();
-//                while(line != null) {
-//                    System.out.println(line);
-//                    line = in.readLine();
-//                }
 
             logger.log(Level.INFO, "Reading client's request...");
             Response response = createResponse();
@@ -102,7 +99,7 @@ class HttpServerLibrary {
                             }
                         } else if (position == urlIndex) {
                             try {
-                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]); // TODO: how does it work? Can we have a null Path?
+                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]);
                                 file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
                             } catch (InvalidPathException exception) {
                                 logger.log(Level.WARNING, "Request path is invalid!", exception);
@@ -182,7 +179,7 @@ class HttpServerLibrary {
             } else
                 response.setData("No files in the directory.");
         } else { // File
-            String fileContent = extractContentFromFile(file.getAbsolutePath(), response);
+            String fileContent = extractContentFromFile(file.getAbsolutePath());
             if (fileContent == null) {
                 response.setStatus(Status.NOT_FOUND);
             }
@@ -193,7 +190,9 @@ class HttpServerLibrary {
     // This method constructs a post response
     private void performPost(Response response) {
         // Output data to file
-        try(BufferedWriter writer  = new BufferedWriter(new FileWriter(response.getFile()))) { // TODO: verify if works properly
+        response.getFile().getParentFile().mkdirs();
+
+        try(BufferedWriter writer  = new BufferedWriter(new FileWriter(response.getFile()))) {
             writer.write(response.getData());
         } catch (IOException e) {
             e.printStackTrace();
@@ -209,8 +208,7 @@ class HttpServerLibrary {
     }
 
     // Helper method to extract data from a file given its path
-    private static String extractContentFromFile(String filePath, Response response) {
-        System.out.println("File path: " + filePath); // TODO: debugging purposes, remove later
+    private static String extractContentFromFile(String filePath) {
         StringBuilder data = new StringBuilder();
         File file = new File(filePath);
 
