@@ -82,7 +82,7 @@ public class HttpClientLibrary {
             // Read status line and check if it is a redirect
             line = in.readLine();
 
-            boolean shouldRedirect = false; //shouldRedirect(line); // TODO: comemnted it out b/c wasn't working properly
+            boolean shouldRedirect = shouldRedirect(line);
 
             // Parse through response headers
             line = in.readLine();

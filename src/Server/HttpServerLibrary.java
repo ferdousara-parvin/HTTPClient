@@ -87,33 +87,35 @@ class HttpServerLibrary {
             if (line != null) {
                 String[] statusLineComponents = line.trim().split(" ");
                 if (statusLineComponents.length == 3) {
-                    // TODO: do switch case
-                    for (int position = 0; position < statusLineComponents.length; position++) {
-                        int methodIndex = 0;
-                        int urlIndex = 1;
-                        int httpVersionIndex = 2;
-                        if (position == methodIndex) {
-                            requestHttpMethod = getMethodFromRequest(statusLineComponents[methodIndex]);
-                            if (requestHttpMethod == null) {
-                                return new Response(Status.NOT_IMPLEMENTED);
-                            }
-                        } else if (position == urlIndex) {
-                            try {
-                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[urlIndex]);
-                                file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
-                            } catch (InvalidPathException exception) {
-                                logger.log(Level.WARNING, "Request path is invalid!", exception);
-                                return new Response(Status.BAD_REQUEST);
-                            }
-                        } else {
-                            httpVersion = statusLineComponents[httpVersionIndex];
-                            if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1"))) {
-                                return new Response(Status.BAD_REQUEST);
-                            }
 
-                            if (httpVersion.equalsIgnoreCase("HTTP/1.1")) {
-                                return new Response(Status.HTTP_VERSION_NOT_SUPPORTED);
-                            }
+                    for (int position = 0; position < statusLineComponents.length; position++) {
+                        final int METHOD = 0;
+                        final int URL = 1;
+                        final int HTTP_VERSION = 2;
+
+                        switch (position) {
+                            case METHOD:
+                                requestHttpMethod = getMethodFromRequest(statusLineComponents[METHOD]);
+                                if (requestHttpMethod == null) return new Response(Status.NOT_IMPLEMENTED);
+                                break;
+                            case URL:
+                                try {
+                                    Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL]);
+                                    file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
+                                } catch (InvalidPathException exception) {
+                                    logger.log(Level.WARNING, "Request path is invalid!", exception);
+                                    return new Response(Status.BAD_REQUEST);
+                                }
+                                break;
+                            case HTTP_VERSION:
+                                httpVersion = statusLineComponents[HTTP_VERSION];
+                                if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1")))
+                                    return new Response(Status.BAD_REQUEST);
+                                if (httpVersion.equalsIgnoreCase("HTTP/1.1"))
+                                    return new Response(Status.HTTP_VERSION_NOT_SUPPORTED);
+                                break;
+                            default:
+                                break;
                         }
                     }
                 } else {
@@ -142,8 +144,7 @@ class HttpServerLibrary {
                 }
             }
 
-            status = Status.OK;
-            return new Response(requestHttpMethod, status, clientHeaders, data.toString(), file);
+            return new Response(requestHttpMethod, Status.OK, clientHeaders, data.toString(), file);
 
         } catch (IOException exception) {
             return new Response(Status.INTERNAL_SERVER_ERROR);
@@ -152,7 +153,7 @@ class HttpServerLibrary {
 
     // This method determines which type of response to create
     private void sendResponse(Response response) {
-        switch(response.getHttpMethod()) {
+        switch (response.getHttpMethod()) {
             case GET:
                 performGet(response);
                 break;
@@ -179,7 +180,7 @@ class HttpServerLibrary {
             } else
                 response.setData("No files in the directory.");
         } else { // File
-            String fileContent = extractContentFromFile(file.getAbsolutePath());
+            String fileContent = extractContent(response.getFile().getAbsoluteFile());
             if (fileContent == null) {
                 response.setStatus(Status.NOT_FOUND);
             }
@@ -192,7 +193,7 @@ class HttpServerLibrary {
         // Output data to file
         response.getFile().getParentFile().mkdirs();
 
-        try(BufferedWriter writer  = new BufferedWriter(new FileWriter(response.getFile()))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(response.getFile()))) {
             writer.write(response.getData());
         } catch (IOException e) {
             e.printStackTrace();
@@ -208,10 +209,8 @@ class HttpServerLibrary {
     }
 
     // Helper method to extract data from a file given its path
-    private static String extractContentFromFile(String filePath) {
+    private static String extractContent(File file) {
         StringBuilder data = new StringBuilder();
-        File file = new File(filePath);
-
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String content = "";
             while ((content = br.readLine()) != null)
@@ -220,7 +219,6 @@ class HttpServerLibrary {
             logger.log(Level.WARNING, "Requested file was not found!", exception);
             return null;
         }
-
         return data.toString().trim();
     }
 
