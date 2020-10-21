@@ -4,6 +4,8 @@ import Helpers.HTTPMethod;
 import Helpers.Status;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Date;
 import java.util.List;
 
@@ -63,9 +65,23 @@ public class Response {
     }
 
     private String getServerHeaders() {
-        return "Server: localhost" + EOL +
-                "Date: " + new Date() + EOL +
-                (status == Status.OK ? "Content-Length: " + this.getContentLength() + EOL : "");
+        StringBuilder headers = new StringBuilder();
+        headers.append("Server: localhost" + EOL);
+        headers.append("Date: " + new Date() + EOL);
+        headers.append(status == Status.OK ? "Content-Length: " + this.getContentLength() + EOL : "");
+        boolean shouldContentTypeHeaderBePresent = httpMethod == HTTPMethod.GET && data != null && !data.isEmpty() && !file.isDirectory();
+        headers.append(shouldContentTypeHeaderBePresent ? getContentTypeHeader() + EOL : "");
+        return headers.toString();
+    }
+
+    private String getContentTypeHeader() {
+        String contentType = null;
+        try {
+            contentType = Files.probeContentType(file.toPath());
+        } catch (IOException exception) {
+            status = Status.NOT_FOUND;
+        }
+        return contentType == null ? "" : "Content-Type: " + contentType;
     }
 
     public Status getStatus() {

@@ -180,7 +180,7 @@ class HttpServerLibrary {
             } else
                 response.setData("No files in the directory.");
         } else { // File
-            String fileContent = extractContentFromFile(file.getAbsolutePath());
+            String fileContent = extractContent(response.getFile().getAbsoluteFile());
             if (fileContent == null) {
                 response.setStatus(Status.NOT_FOUND);
             }
@@ -209,10 +209,8 @@ class HttpServerLibrary {
     }
 
     // Helper method to extract data from a file given its path
-    private static String extractContentFromFile(String filePath) {
+    private static String extractContent(File file) {
         StringBuilder data = new StringBuilder();
-        File file = new File(filePath);
-
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String content = "";
             while ((content = br.readLine()) != null)
@@ -221,7 +219,6 @@ class HttpServerLibrary {
             logger.log(Level.WARNING, "Requested file was not found!", exception);
             return null;
         }
-
         return data.toString().trim();
     }
 
