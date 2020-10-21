@@ -69,8 +69,8 @@ public class Response {
         headers.append("Server: localhost" + EOL);
         headers.append("Date: " + new Date() + EOL);
         headers.append(status == Status.OK ? "Content-Length: " + this.getContentLength() + EOL : "");
-        boolean shouldContentTypeHeaderBePresent = httpMethod == HTTPMethod.GET && data != null && !data.isEmpty() && !file.isDirectory();
-        headers.append(shouldContentTypeHeaderBePresent ? getContentTypeHeader() + EOL : "");
+        headers.append(shouldContentTypeHeaderBePresent() ? getContentTypeHeader() + EOL : "");
+        headers.append(shouldContentTypeHeaderBePresent()? getContentDispositionHeader() + EOL: "");
         return headers.toString();
     }
 
@@ -82,6 +82,14 @@ public class Response {
             status = Status.NOT_FOUND;
         }
         return contentType == null ? "" : "Content-Type: " + contentType;
+    }
+
+    private String getContentDispositionHeader(){
+        return shouldContentTypeHeaderBePresent() ? "Conten-Disposition: inline" : "";
+    }
+
+    private boolean shouldContentTypeHeaderBePresent(){
+        return httpMethod == HTTPMethod.GET && data != null && !data.isEmpty() && !file.isDirectory();
     }
 
     public Status getStatus() {
