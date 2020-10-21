@@ -1,4 +1,4 @@
-# Client.HttpClientLibrary
+# Server.HttpServerLibrary
 COMP 445 -- Lab Assignment 2: Implement a simple HTTP server application and build a simple remote file manager on top of the HTTP protocol in the server side.
 
 Directives: _Add link to directives_
