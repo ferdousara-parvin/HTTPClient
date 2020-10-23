@@ -3,6 +3,7 @@ package Client;
 import Client.Requests.PostRequest;
 import Client.Requests.Redirectable;
 import Client.Requests.Request;
+import Helpers.Status;
 
 import java.io.*;
 import java.net.Socket;
@@ -142,9 +143,9 @@ public class HttpClientLibrary {
                 if (isVerbose) printLine(line);
                 try {
                     int statusCode = Integer.parseInt(statusLineComponents[1]);
-                    boolean isRedirectCode = statusCode == Redirectable.StatusCode.MOVED_PERMANENTLY.code ||
-                            statusCode == Redirectable.StatusCode.FOUND.code ||
-                            statusCode == Redirectable.StatusCode.TEMPORARY_REDIRECT.code;
+                    boolean isRedirectCode = statusCode == Status.MOVED_PERMANENTLY.getCode() ||
+                            statusCode == Status.FOUND.getCode() ||
+                            statusCode == Status.TEMPORARY_REDIRECT.getCode();
                     shouldRedirect = isRedirectCode && request instanceof Redirectable;
                 } catch (NumberFormatException exception) {
                     System.out.println("Status code cannot be converted to int: " + exception);

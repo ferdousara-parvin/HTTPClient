@@ -22,8 +22,6 @@ public class Response {
     private final String HTTP_VERSION = "HTTP/1.0";
     private final String EOL = "\r\n";
 
-    // TODO: Optional content-type, content disposition
-
     public Response(Status status) {
         this.status = status;
     }
