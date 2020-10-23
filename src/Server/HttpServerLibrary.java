@@ -6,9 +6,11 @@ import Server.Responses.Response;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
@@ -57,7 +59,6 @@ class HttpServerLibrary {
                 continue;
             }
 
-            // TODO: Nice to have: add timeout if client hasn't send anything after some time, 408 ERROR CODE
             logger.log(Level.INFO, "Client connected to server");
 
             logger.log(Level.INFO, "Reading client's request...");
@@ -100,6 +101,8 @@ class HttpServerLibrary {
                                 break;
                             case URL:
                                 try {
+                                    if (statusLineComponents[URL].contains("../"))
+                                        return new Response(Status.BAD_REQUEST);
                                     Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL]);
                                     file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
                                 } catch (InvalidPathException exception) {
@@ -153,13 +156,15 @@ class HttpServerLibrary {
 
     // This method determines which type of response to create
     private void sendResponse(Response response) {
-        switch (response.getHttpMethod()) {
-            case GET:
-                performGet(response);
-                break;
-            case POST:
-                performPost(response);
-                break;
+        if (response.getHttpMethod() != null) {
+            switch (response.getHttpMethod()) {
+                case GET:
+                    performGet(response);
+                    break;
+                case POST:
+                    performPost(response);
+                    break;
+            }
         }
 
         out.print(response.getResponse());
@@ -168,23 +173,30 @@ class HttpServerLibrary {
 
     // This method constructs a get response
     private void performGet(Response response) {
-        // Populate data to send back
-        StringBuilder data = new StringBuilder();
-        File file = response.getFile();
-        if (file.isDirectory()) { // Directory
-            String[] children = file.list();
-            if (children != null) {
-                for (String child : children)
-                    data.append(child + "\n");
-                response.setData(data.toString());
+        if (!response.getFile().exists()) {
+            response.setStatus(Status.NOT_FOUND);
+        } else {
+            if (Files.isReadable(response.getFile().toPath())) {
+                // Populate data to send back
+                StringBuilder data = new StringBuilder();
+                File file = response.getFile();
+                if (file.isDirectory()) { // Directory
+                    String[] children = file.list();
+                    if (children != null) {
+                        for (String child : children)
+                            data.append(child + "\n");
+                        response.setData(data.toString());
+                    } else
+                        response.setData("No files in the directory.");
+                } else { // File
+                    String fileContent = extractContent(response.getFile().getAbsoluteFile());
+                    if (fileContent == null) {
+                        response.setStatus(Status.NOT_FOUND);
+                    }
+                    response.setData(fileContent);
+                }
             } else
-                response.setData("No files in the directory.");
-        } else { // File
-            String fileContent = extractContent(response.getFile().getAbsoluteFile());
-            if (fileContent == null) {
-                response.setStatus(Status.NOT_FOUND);
-            }
-            response.setData(fileContent);
+                response.setStatus(Status.FORBIDDEN);
         }
     }
 
@@ -192,13 +204,18 @@ class HttpServerLibrary {
     private void performPost(Response response) {
         // Output data to file
         response.getFile().getParentFile().mkdirs();
-
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(response.getFile()))) {
-            writer.write(response.getData());
-        } catch (IOException e) {
-            e.printStackTrace();
-            response.setStatus(Status.NOT_FOUND);
-        }
+        boolean isWritable = (response.getFile().exists() && Files.isWritable(response.getFile().toPath())) || (!response.getFile().exists() && Files.isWritable(response.getFile().getParentFile().toPath()));
+        if (isWritable && response.getFile().isFile()) {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(response.getFile()))) {
+                writer.write(response.getData());
+            } catch (IOException e) {
+                e.printStackTrace();
+                response.setStatus(Status.NOT_FOUND);
+            }
+        } else if (isWritable && !response.getFile().isFile()) {
+            response.setStatus(Status.BAD_REQUEST);
+        } else
+            response.setStatus(Status.FORBIDDEN);
     }
 
     private HTTPMethod getMethodFromRequest(String requestMethod) {
