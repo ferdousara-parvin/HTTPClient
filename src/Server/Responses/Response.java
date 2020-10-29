@@ -83,7 +83,7 @@ public class Response {
     }
 
     private String getContentDispositionHeader(){
-        return shouldContentTypeHeaderBePresent() ? "Conten-Disposition: inline" : "";
+        return shouldContentTypeHeaderBePresent() ? "Content-Disposition: inline" : "";
     }
 
     private boolean shouldContentTypeHeaderBePresent(){
