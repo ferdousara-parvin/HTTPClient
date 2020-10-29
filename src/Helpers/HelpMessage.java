@@ -4,7 +4,7 @@ package Helpers;
  * This enum class contains the different types of help messages that can be sent to the user.
  */
 public enum HelpMessage {
-    INCORRECT_PARAM_HTTPC, INCORRECT_PARAM_HTTPFS, CLIENT, GET, POST, SERVER;
+    INCORRECT_PARAM_HTTPC, INCORRECT_PARAM_HTTPFS, CLIENT, GET, POST, SERVER, INVALID_BASE_DIRECTORY, INVALID_PORT_NUMBER;
 
     public String getMessage() {
         String message = "";
@@ -53,6 +53,12 @@ public enum HelpMessage {
                         "\t-p \tSpecifies the port number that the server will listen and serve at.\n" +
                         "\t\tDefault is 8080.\n" +
                         "\t-d \tSpecifies the directory that the server will use to read/write requested files. Default is the current directory when launching the application.";
+                break;
+            case INVALID_BASE_DIRECTORY:
+                message = "Base directory provided does not exist.";
+                break;
+            case INVALID_PORT_NUMBER:
+                message = "Port number is invalid. The accepted range is [1024,65535].";
                 break;
         }
         return message;

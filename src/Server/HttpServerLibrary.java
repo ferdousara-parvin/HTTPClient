@@ -29,9 +29,9 @@ class HttpServerLibrary {
 
     private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
 
-    HttpServerLibrary(boolean isVerbose, int port, String pathToDirectory) {
+    HttpServerLibrary(boolean isVerbose, int port, Path baseDirectory) {
         this.port = port;
-        this.baseDirectory = Paths.get(pathToDirectory).toAbsolutePath();
+        this.baseDirectory = baseDirectory;
 
         logger.setLevel(isVerbose ? Level.INFO : Level.WARNING);
 
@@ -43,7 +43,7 @@ class HttpServerLibrary {
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException exception) {
-            logger.log(Level.WARNING, "Server socket was unable to be initialized", exception);
+            logger.log(Level.WARNING, "Server socket was unable to be initialized at port " + port, exception);
             System.exit(3);
         }
 
@@ -205,15 +205,16 @@ class HttpServerLibrary {
         // Output data to file
         response.getFile().getParentFile().mkdirs();
         boolean isWritable = (response.getFile().exists() && Files.isWritable(response.getFile().toPath())) || (!response.getFile().exists() && Files.isWritable(response.getFile().getParentFile().toPath()));
-        if (isWritable && response.getFile().isFile()) {
+        if (isWritable) {
+            if(!response.getFile().exists()) {
+                response.setStatus(Status.CREATED);
+            }
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(response.getFile()))) {
                 writer.write(response.getData());
             } catch (IOException e) {
                 e.printStackTrace();
                 response.setStatus(Status.NOT_FOUND);
             }
-        } else if (isWritable && !response.getFile().isFile()) {
-            response.setStatus(Status.BAD_REQUEST);
         } else
             response.setStatus(Status.FORBIDDEN);
     }

@@ -5,10 +5,10 @@ package Helpers;
  */
 public enum Status {
     OK(200, "OK"),
+    CREATED(201, "Created"),
     BAD_REQUEST(400, "Bad Request"),
     FORBIDDEN(403, "Forbidden"),
     NOT_FOUND(404, "Not Found"),
-    REQUEST_TIMEOUT(408, "Request Timeout"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
     NOT_IMPLEMENTED(501, "Not Implemented"),
     HTTP_VERSION_NOT_SUPPORTED(505, "HTTP Version Not Supported"),
