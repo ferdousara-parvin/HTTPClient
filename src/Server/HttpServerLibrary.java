@@ -112,7 +112,7 @@ class HttpServerLibrary {
                                 break;
                             case HTTP_VERSION:
                                 httpVersion = statusLineComponents[HTTP_VERSION];
-                                // Uncomment these lines if the server does not support early versions of HTTP (kept for demonstration purposes)
+                                // Uncomment these lines if the server does only support early versions of HTTP (kept for demonstration purposes)
 //                                if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1")))
 //                                    return new Response(Status.BAD_REQUEST);
 //                                if (httpVersion.equalsIgnoreCase("HTTP/1.1"))
