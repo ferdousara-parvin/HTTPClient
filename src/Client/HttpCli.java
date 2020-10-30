@@ -22,7 +22,8 @@ public class HttpCli {
     private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
     private static String data = "";
-    static int currentIndex = 0;
+    private static int currentIndex = 0;
+    private static int port = -1;
 
     public static void main(String[] args) {
         Request request = constructRequestFromArgs(args);
@@ -56,10 +57,10 @@ public class HttpCli {
         Request request = null;
         switch (httpMethod) {
             case GET:
-                request = new GetRequest(url.getHost(), url.getPath(), url.getQuery(), headers);
+                request = new GetRequest(url.getHost(), url.getPath(), url.getQuery(), headers, port);
                 break;
             case POST:
-                request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data);
+                request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data, port);
                 break;
             default:
                 showErrorAndExit("Request was not properly created.");
@@ -153,8 +154,12 @@ public class HttpCli {
                     currentIndex++;
                     responseFilePath = getOptionValue(args);
                     break;
-                default:
-                    showErrorAndExit("Option is not supported. Here's the list of supported options: -v, -d, -f, -o, -h.");
+                case "-p":
+                    if (currentIndex++ < args.length && !args[currentIndex].startsWith("-"))
+                        port = Integer.valueOf(args[currentIndex]);
+                    break;
+                 default:
+                    showErrorAndExit("Option is not supported. Here's the list of supported options: -v, -d, -f, -o, -h, -p.");
             }
             currentIndex++;
         }

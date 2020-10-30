@@ -11,8 +11,8 @@ import java.util.List;
  */
 public class GetRequest extends Request implements Redirectable {
 
-    public GetRequest(String host, String path, String query, List<String> headers) {
-        super(host, path, query, HTTPMethod.GET, headers);
+    public GetRequest(String host, String path, String query, List<String> headers, int port) {
+        super(host, path, query, HTTPMethod.GET, headers, port);
     }
 
     @Override
@@ -28,6 +28,6 @@ public class GetRequest extends Request implements Redirectable {
         return new GetRequest(url.getHost(),
                 url.getPath(),
                 url.getQuery(),
-                this.headers);
+                this.getHeaders(), this.getPort());
     }
 }

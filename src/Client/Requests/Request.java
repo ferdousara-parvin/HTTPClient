@@ -12,17 +12,16 @@ public abstract class Request {
     private String path;
     private String query;
     private HTTPMethod method;
-    List<String> headers;
+    private List<String> headers;
     private int port;
-    private final int DEFAULT_PORT = 6060;
 
-    Request(String host, String path, String query, HTTPMethod method, List<String> headers) {
+    Request(String host, String path, String query, HTTPMethod method, List<String> headers, int port) {
         this.host = host;
         this.path = path;
         this.query = query == null ? "" : "?" + query;
         this.method = method;
         this.headers = headers;
-        this.port = DEFAULT_PORT;
+        this.port = port == -1 ? 8080 : port;
     }
 
     public List<String> getHeaders() {

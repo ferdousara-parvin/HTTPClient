@@ -10,8 +10,8 @@ import java.util.List;
 public class PostRequest extends Request {
     private String data;
 
-    public PostRequest(String host, String path, String query, List<String> headers, String data) {
-        super(host, path, query, HTTPMethod.POST, headers);
+    public PostRequest(String host, String path, String query, List<String> headers, String data, int port) {
+        super(host, path, query, HTTPMethod.POST, headers, port);
         this.data = data;
     }
 
