@@ -1,8 +1,10 @@
+package Client;
+
 import Helpers.HTTPMethod;
 import Helpers.HelpMessage;
-import Requests.GetRequest;
-import Requests.PostRequest;
-import Requests.Request;
+import Client.Requests.GetRequest;
+import Client.Requests.PostRequest;
+import Client.Requests.Request;
 
 import java.io.*;
 import java.net.MalformedURLException;
@@ -20,7 +22,8 @@ public class HttpCli {
     private static HTTPMethod httpMethod;
     private static List<String> headers = new ArrayList<>();
     private static String data = "";
-    static int currentIndex = 0;
+    private static int currentIndex = 0;
+    private static int port = -1;
 
     public static void main(String[] args) {
         Request request = constructRequestFromArgs(args);
@@ -33,7 +36,7 @@ public class HttpCli {
 
     // Parse the arguments given and create a request from them
     private static Request constructRequestFromArgs(String[] args) {
-        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+        if (args.length < 1) showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
 
         setHTTPMethod(args);
         currentIndex++;
@@ -54,10 +57,10 @@ public class HttpCli {
         Request request = null;
         switch (httpMethod) {
             case GET:
-                request = new GetRequest(url.getHost(), url.getPath(), url.getQuery(), headers);
+                request = new GetRequest(url.getHost(), url.getPath(), url.getQuery(), headers, port);
                 break;
             case POST:
-                request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data);
+                request = new PostRequest(url.getHost(), url.getPath(), url.getQuery(), headers, data, port);
                 break;
             default:
                 showErrorAndExit("Request was not properly created.");
@@ -79,7 +82,7 @@ public class HttpCli {
                 httpMethod = HTTPMethod.POST;
                 break;
             default:
-                showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+                showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
         }
 
     }
@@ -87,7 +90,7 @@ public class HttpCli {
     // Helper method to show the correct help message depending on the given arguments
     private static void parseHelp(String[] args) {
         if (args.length == 1) {
-            System.out.print(HelpMessage.GENERAL.getMessage());
+            System.out.print(HelpMessage.CLIENT.getMessage());
         } else if (args.length == 2) { // args.length > 1
             switch (args[1]) {
                 case "get":
@@ -100,7 +103,7 @@ public class HttpCli {
                     showErrorAndExit("Incorrect parameters. The following are supported: help get, help post.");
             }
         } else
-            showErrorAndExit(HelpMessage.INCORRECT_PARAM.getMessage());
+            showErrorAndExit(HelpMessage.INCORRECT_PARAM_HTTPC.getMessage());
     }
 
     // Helper method to determine which options are asked for from the given arguments
@@ -151,8 +154,12 @@ public class HttpCli {
                     currentIndex++;
                     responseFilePath = getOptionValue(args);
                     break;
-                default:
-                    showErrorAndExit("Option is not supported. Here's the list of supported options: -v, -d, -f, -o, -h.");
+                case "-p":
+                    if (currentIndex++ < args.length && !args[currentIndex].startsWith("-"))
+                        port = Integer.valueOf(args[currentIndex]);
+                    break;
+                 default:
+                    showErrorAndExit("Option is not supported. Here's the list of supported options: -v, -d, -f, -o, -h, -p.");
             }
             currentIndex++;
         }
@@ -201,7 +208,7 @@ public class HttpCli {
 
     // Helper method to show the error message before exiting
     private static void showErrorAndExit(String message) {
-        System.out.print(message + "\n");
+        System.err.print(message + "\n");
         System.exit(0);
     }
 

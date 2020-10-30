@@ -4,15 +4,18 @@ package Helpers;
  * This enum class contains the different types of help messages that can be sent to the user.
  */
 public enum HelpMessage {
-    INCORRECT_PARAM, GENERAL, GET, POST;
+    INCORRECT_PARAM_HTTPC, INCORRECT_PARAM_HTTPFS, CLIENT, GET, POST, SERVER, INVALID_BASE_DIRECTORY, INVALID_PORT_NUMBER;
 
     public String getMessage() {
         String message = "";
         switch (this) {
-            case INCORRECT_PARAM:
+            case INCORRECT_PARAM_HTTPC:
                 message = "Incorrect parameters! Try httpc help for more information.";
                 break;
-            case GENERAL:
+            case INCORRECT_PARAM_HTTPFS:
+                message = "Incorrect parameters! Try httpfs help for more information.";
+                break;
+            case CLIENT:
                 message = "httpc is curl-like application but supports HTTP protocol only.\n" +
                         "Usage:\n" +
                         "\thttpc command [arguments]\n" +
@@ -42,6 +45,21 @@ public enum HelpMessage {
                         "\t-f file      \t" +
                         "Associates the content of a file to the body HTTP POST request.\n\n" +
                         "Either [-d] or [-f] can be used but not both.\n";
+                break;
+            case SERVER:
+                message = "httpfs is a simple file server.\n" +
+                        "usage: httpfs [-v] [-p PORT] [-d PATH-TO-DIR]\n" +
+                        "\t-v \tPrints debugging messages.\n" +
+                        "\t-p \tSpecifies the port number that the server will listen and serve at.\n" +
+                        "\t\tDefault is 8080.\n" +
+                        "\t-d \tSpecifies the directory that the server will use to read/write requested files. Default is the current directory when launching the application.";
+                break;
+            case INVALID_BASE_DIRECTORY:
+                message = "Base directory provided does not exist.";
+                break;
+            case INVALID_PORT_NUMBER:
+                message = "Port number is invalid. The accepted range is [1024,65535].";
+                break;
         }
         return message;
     }
