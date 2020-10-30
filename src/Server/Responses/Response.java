@@ -67,27 +67,32 @@ public class Response {
         headers.append("Server: localhost" + EOL);
         headers.append("Date: " + new Date() + EOL);
         headers.append(status == Status.OK ? "Content-Length: " + this.getContentLength() + EOL : "");
-        headers.append(shouldContentTypeHeaderBePresent() ? getContentTypeHeader() + EOL : "");
-        headers.append(shouldContentTypeHeaderBePresent()? getContentDispositionHeader() + EOL: "");
+        headers.append(isBodyPresentInResponse() && getContentType() != null? "Content-Type: " + getContentType() + EOL : "");
+        headers.append(isBodyPresentInResponse() && getContentDisposition() != null? "Content-Disposition: " + getContentDisposition() + EOL: "");
         return headers.toString();
     }
 
-    private String getContentTypeHeader() {
+    private String getContentType() {
+        if(file.isDirectory()) return "text/plain";
+
         String contentType = null;
         try {
             contentType = Files.probeContentType(file.toPath());
         } catch (IOException exception) {
             status = Status.NOT_FOUND;
         }
-        return contentType == null ? "" : "Content-Type: " + contentType;
+        return contentType;
     }
 
-    private String getContentDispositionHeader(){
-        return shouldContentTypeHeaderBePresent() ? "Content-Disposition: inline" : "";
+    private String getContentDisposition(){
+        String contentType = getContentType();
+        if(contentType == null || !isBodyPresentInResponse()) return null;
+        if(contentType != null && contentType.startsWith("text/")) return "inline";
+        return "attachment; filename=\"" + file.getName() + "\"";
     }
 
-    private boolean shouldContentTypeHeaderBePresent(){
-        return httpMethod == HTTPMethod.GET && data != null && !data.isEmpty() && !file.isDirectory();
+    private boolean isBodyPresentInResponse(){
+        return httpMethod == HTTPMethod.GET && data != null && !data.isEmpty();
     }
 
     public Status getStatus() {
