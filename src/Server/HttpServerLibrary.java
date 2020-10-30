@@ -102,7 +102,7 @@ class HttpServerLibrary {
                             case URL:
                                 try {
                                     if (statusLineComponents[URL].contains("../"))
-                                        return new Response(Status.FORBIDDEN);
+                                        return new Response(Status.BAD_REQUEST);
                                     Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL]);
                                     file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
                                 } catch (InvalidPathException exception) {
