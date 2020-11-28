@@ -5,9 +5,14 @@ import Client.Requests.Redirectable;
 import Client.Requests.Request;
 import Helpers.Packet;
 import Helpers.Status;
+import Helpers.UDPConnection;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,8 +31,6 @@ public class HttpClientLibrary {
     private final static int REDIRECT_MAXIMUM = 5;
     private BufferedWriter writer;
     private final static String EOL = "\r\n";
-    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
-    private final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private static final Logger logger = Logger.getLogger(HttpClientLibrary.class.getName());
 
@@ -52,6 +55,7 @@ public class HttpClientLibrary {
     private void performRequest() {
         try {
             clientSocket = new DatagramSocket();
+            handshake();
             sendRequest();
             readResponse();
         } catch (IOException exception) {
@@ -62,18 +66,31 @@ public class HttpClientLibrary {
         }
     }
 
+    //TODO: Implement the 3-way handshake
+    private void handshake() {
+        // Random sequence number
+//        int initialSequenceNumber = 0;
+//        sendSYN(initialSequenceNumber);
+//        int secondSequenceNumber = receiveSYN_ACK(initialSequenceNumber);
+//        sendSYN(++secondSequenceNumber);
+    }
+//
+//    //Send synchronization sequence number
+//    private void sendSYN(int sequenceNumber) {
+//        //1. send a SYNC packet with the sequenceNumber
+//    }
+//
+//    //Receive and verify acknowledgment, return the second synchronization seq number
+//    private int receiveSYN_ACK(int initialSequenceNumber) {
+//        // 1. Make sure that the received sequence number is equal to initialSequenceNumber + 1
+//        //if not verifies, send nak
+//        // 2. return the synchronization sequence number sent by the server
+//        return 0;
+//    }
+
     private void sendRequest() throws IOException {
         String payload = constructPayload();
-        Packet p = new Packet.Builder()
-                .setType(0)
-                .setSequenceNumber(1L)
-                .setPortNumber(request.getPort())
-                .setPeerAddress(request.getAddress())
-                .setPayload(payload.getBytes())
-                .create();
-
-        byte[] packetToBytes = p.toBytes();
-        clientSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        UDPConnection.sendData(1, payload, request, clientSocket);
     }
 
     private String constructPayload() {

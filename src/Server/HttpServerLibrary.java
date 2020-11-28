@@ -3,10 +3,12 @@ package Server;
 import Helpers.HTTPMethod;
 import Helpers.Packet;
 import Helpers.Status;
+import Helpers.UDPConnection;
 import Server.Responses.Response;
 
 import java.io.*;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -25,9 +27,6 @@ class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
     private DatagramSocket serverSocket;
-
-    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
-    SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private final static String EOL = "\r\n";
 
@@ -49,11 +48,11 @@ class HttpServerLibrary {
             serverSocket = new DatagramSocket(port);
             logger.log(Level.INFO, "Listening on port " + port + " ...");
 
-            byte[] buff = new byte[Packet.MAX_LEN];
-            DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
-            serverSocket.receive(datagramPacket);
+            handshake();
 
-            requestPacket = Packet.fromBytes(datagramPacket.getData());
+            receiveData();
+
+            requestPacket = UDPConnection.receiveData(serverSocket);
             requestPayload = new String(requestPacket.getPayload(), UTF_8);
 
         } catch (IOException socketException) {
@@ -69,6 +68,18 @@ class HttpServerLibrary {
         logger.log(Level.INFO, "Server closing connection...");
         closeUDPConnection();
     }
+
+    //TODO: Implement the 3-way handshake
+    private void handshake() {
+        // Random sequence number
+//        int initialSequenceNumber = receiveSYN();
+        //if not verified, send nak
+//        sendSYN_ACK(++initialSequenceNumber);
+//        receiveSYNC(); // make sure that the received sync is incremented
+    }
+
+    //TODO: Receive data using the ARQ method   [IMPLEMENT THE SLECTIVE-REPEAT ARQ]
+    private void receiveData(){}
 
     // This method reads the requests sent by the client and creates a Response object
     private Response createResponseFrom(String request) {
@@ -173,7 +184,7 @@ class HttpServerLibrary {
         byte[] packetToBytes = responsePacket.toBytes();
 
         try {
-            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, UDPConnection.routerAddress));
         } catch (IOException exception) {
             exception.printStackTrace();
         }
@@ -247,7 +258,6 @@ class HttpServerLibrary {
         }
         return data.toString().trim();
     }
-
 
     private void closeUDPConnection() {
         serverSocket.close();
