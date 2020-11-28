@@ -1,6 +1,7 @@
 package Server;
 
 import Helpers.HTTPMethod;
+import Helpers.Packet;
 import Helpers.Status;
 import Server.Responses.Response;
 
@@ -10,11 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * This class is the server library. It takes care of opening the TCP connection, reading the request and sending the response.
@@ -22,10 +24,12 @@ import java.util.logging.Logger;
 class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
+    private DatagramSocket serverSocket;
 
-    private Socket socket;
-    private BufferedReader in;
-    private PrintWriter out;
+    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
+    SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
+
+    private final static String EOL = "\r\n";
 
     private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
 
@@ -39,124 +43,114 @@ class HttpServerLibrary {
     }
 
     private void start() {
-        ServerSocket serverSocket = null;
+        String requestPayload = "";
+        Packet requestPacket = null;
         try {
-            serverSocket = new ServerSocket(port);
-        } catch (IOException exception) {
-            logger.log(Level.WARNING, "Server socket was unable to be initialized at port " + port, exception);
-            System.exit(3);
+            serverSocket = new DatagramSocket(port);
+            logger.log(Level.INFO, "Listening on port " + port + " ...");
+
+            byte[] buff = new byte[Packet.MAX_LEN];
+            DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
+            serverSocket.receive(datagramPacket);
+
+            requestPacket = Packet.fromBytes(datagramPacket.getData());
+            requestPayload = new String(requestPacket.getPayload(), UTF_8);
+
+        } catch (IOException socketException) {
+            socketException.printStackTrace();
         }
 
-        logger.log(Level.INFO, "Listening on port " + port + " ...");
+        logger.log(Level.INFO, "Reading client's request...");
+        Response response = createResponseFrom(requestPayload);
 
-        while (true) {
-            try {
-                socket = serverSocket.accept();
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream(), true);
-            } catch (IOException exception) {
-                logger.log(Level.WARNING, "Server socket was unable to connect to the client", exception);
-                continue;
-            }
+        logger.log(Level.INFO, "Sending response to client...");
+        sendResponse(response, requestPacket);
 
-            logger.log(Level.INFO, "Client connected to server");
-
-            logger.log(Level.INFO, "Reading client's request...");
-            Response response = createResponse();
-
-            logger.log(Level.INFO, "Sending response to client...");
-            sendResponse(response);
-
-            logger.log(Level.INFO, "Server closing connection...");
-            closeTCPConnection();
-        }
+        logger.log(Level.INFO, "Server closing connection...");
+        closeUDPConnection();
     }
 
     // This method reads the requests sent by the client and creates a Response object
-    private Response createResponse() {
-
+    private Response createResponseFrom(String request) {
         // Parse request line
         HTTPMethod requestHttpMethod = null;
         File file = null;
-        String httpVersion = "";
-        Status status;
 
-        String line;
-        try {
-            line = in.readLine();
+        String[] requestLines = request.split(EOL);
+        int lineCounter = 0;
+        String line = "";
 
-            if (line != null) {
-                String[] statusLineComponents = line.trim().split(" ");
-                if (statusLineComponents.length == 3) {
+        line = requestLines.length >= 1 ? requestLines[lineCounter] : null;
 
-                    for (int position = 0; position < statusLineComponents.length; position++) {
-                        final int METHOD = 0;
-                        final int URL = 1;
-                        final int HTTP_VERSION = 2;
+        if (line != null) {
+            String[] statusLineComponents = line.trim().split(" ");
+            if (statusLineComponents.length == 3) {
 
-                        switch (position) {
-                            case METHOD:
-                                requestHttpMethod = getMethodFromRequest(statusLineComponents[METHOD]);
-                                if (requestHttpMethod == null) return new Response(Status.NOT_IMPLEMENTED);
-                                break;
-                            case URL:
-                                try {
-                                    if (statusLineComponents[URL].contains("../"))
-                                        return new Response(Status.BAD_REQUEST);
-                                    Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL]);
-                                    file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
-                                } catch (InvalidPathException exception) {
-                                    logger.log(Level.WARNING, "Request path is invalid!", exception);
+                for (int position = 0; position < statusLineComponents.length; position++) {
+                    final int METHOD = 0;
+                    final int URL = 1;
+                    final int HTTP_VERSION = 2;
+
+                    switch (position) {
+                        case METHOD:
+                            requestHttpMethod = getMethodFromRequest(statusLineComponents[METHOD]);
+                            if (requestHttpMethod == null) return new Response(Status.NOT_IMPLEMENTED);
+                            break;
+                        case URL:
+                            try {
+                                if (statusLineComponents[URL].contains("../"))
                                     return new Response(Status.BAD_REQUEST);
-                                }
-                                break;
-                            case HTTP_VERSION:
-                                httpVersion = statusLineComponents[HTTP_VERSION];
-                                // Uncomment these lines if the server does only support early versions of HTTP (kept for demonstration purposes)
+                                Path path = baseDirectory.getFileSystem().getPath(statusLineComponents[URL]);
+                                file = Paths.get(baseDirectory.toString(), path.toString()).toFile();
+                            } catch (InvalidPathException exception) {
+                                logger.log(Level.WARNING, "Request path is invalid!", exception);
+                                return new Response(Status.BAD_REQUEST);
+                            }
+                            break;
+                        case HTTP_VERSION:
+//                                httpVersion = statusLineComponents[HTTP_VERSION];
+                            // Uncomment these lines if the server does only support early versions of HTTP (kept for demonstration purposes)
 //                                if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1")))
 //                                    return new Response(Status.BAD_REQUEST);
 //                                if (httpVersion.equalsIgnoreCase("HTTP/1.1"))
 //                                    return new Response(Status.HTTP_VERSION_NOT_SUPPORTED);
-                                break;
-                            default:
-                                break;
-                        }
+                            break;
+                        default:
+                            break;
                     }
-                } else {
-                    return new Response(Status.BAD_REQUEST);
                 }
             } else {
                 return new Response(Status.BAD_REQUEST);
             }
-
-            // Parse Headers
-            List<String> clientHeaders = new ArrayList<>();
-            line = in.readLine();
-            while (line != null && !line.isEmpty()) {
-                clientHeaders.add(line);
-                line = in.readLine();
-            }
-
-            // Parse data (for POST)
-            StringBuilder data = new StringBuilder();
-            if (requestHttpMethod.equals(HTTPMethod.POST)) {
-                line = in.readLine();
-                while (line != null && !line.isEmpty()) {
-                    data.append(line);
-                    data.append("\n");
-                    line = in.readLine();
-                }
-            }
-
-            return new Response(requestHttpMethod, Status.OK, clientHeaders, data.toString(), file);
-
-        } catch (IOException exception) {
-            return new Response(Status.INTERNAL_SERVER_ERROR);
+        } else {
+            return new Response(Status.BAD_REQUEST);
         }
+
+        // Parse Headers
+        List<String> clientHeaders = new ArrayList<>();
+        line = requestLines.length >= 2 ? requestLines[++lineCounter] : null;
+        while (line != null && !line.isEmpty()) {
+            clientHeaders.add(line);
+            line = requestLines.length >= ++lineCounter ? requestLines[lineCounter] : null;
+        }
+
+        // Parse data (for POST)
+        StringBuilder data = new StringBuilder();
+        if (requestHttpMethod.equals(HTTPMethod.POST)) {
+            line = requestLines.length >= ++lineCounter ? requestLines[lineCounter] : null;
+            while (line != null && !line.isEmpty()) {
+                data.append(line);
+                data.append("\n");
+                line = requestLines.length >= ++lineCounter ? requestLines[lineCounter] : null;
+            }
+        }
+
+        return new Response(requestHttpMethod, Status.OK, clientHeaders, data.toString(), file);
+
     }
 
     // This method determines which type of response to create
-    private void sendResponse(Response response) {
+    private void sendResponse(Response response, Packet requestPacket) {
         if (response.getHttpMethod() != null) {
             switch (response.getHttpMethod()) {
                 case GET:
@@ -168,8 +162,21 @@ class HttpServerLibrary {
             }
         }
 
-        out.print(response.getResponse());
-        out.flush();
+        logger.log(Level.INFO, "Server constructed response...");
+        logger.log(Level.INFO, response.getResponse());
+
+        String payload = response.getResponse();
+        Packet responsePacket = requestPacket.toBuilder()
+                .setPayload(payload.getBytes())
+                .create();
+
+        byte[] packetToBytes = responsePacket.toBytes();
+
+        try {
+            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
     }
 
     // This method constructs a get response
@@ -207,7 +214,7 @@ class HttpServerLibrary {
         response.getFile().getParentFile().mkdirs();
         boolean isWritable = (response.getFile().exists() && Files.isWritable(response.getFile().toPath())) || (!response.getFile().exists() && Files.isWritable(response.getFile().getParentFile().toPath()));
         if (isWritable) {
-            if(!response.getFile().exists()) {
+            if (!response.getFile().exists()) {
                 response.setStatus(Status.CREATED);
             }
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(response.getFile()))) {
@@ -241,13 +248,8 @@ class HttpServerLibrary {
         return data.toString().trim();
     }
 
-    private void closeTCPConnection() {
-        try {
-            in.close();
-            out.close();
-            socket.close();
-        } catch (IOException exception) {
-            logger.log(Level.WARNING, "Server was unable to close the connection with the client", exception);
-        }
+
+    private void closeUDPConnection() {
+        serverSocket.close();
     }
 }

@@ -3,19 +3,22 @@ package Client;
 import Client.Requests.PostRequest;
 import Client.Requests.Redirectable;
 import Client.Requests.Request;
+import Helpers.Packet;
 import Helpers.Status;
 
 import java.io.*;
-import java.net.Socket;
+import java.net.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * This class is the client library. It takes care of opening the TCP connection, sending the request and reading the response.
  */
 public class HttpClientLibrary {
 
-    private PrintStream out;
-    private BufferedReader in;
-    private Socket clientSocket;
+    private DatagramSocket clientSocket;
     private Request request;
     private boolean isVerbose;
     private String responseFilePath;
@@ -23,6 +26,10 @@ public class HttpClientLibrary {
     private final static int REDIRECT_MAXIMUM = 5;
     private BufferedWriter writer;
     private final static String EOL = "\r\n";
+    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
+    private final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
+
+    private static final Logger logger = Logger.getLogger(HttpClientLibrary.class.getName());
 
     public HttpClientLibrary(Request request, boolean isVerbose) {
         this(request, isVerbose, "");
@@ -44,49 +51,81 @@ public class HttpClientLibrary {
 
     private void performRequest() {
         try {
-            clientSocket = new Socket(request.getHost(), request.getPort());
-            out = new PrintStream(clientSocket.getOutputStream());
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            clientSocket = new DatagramSocket();
             sendRequest();
             readResponse();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException exception) {
+            exception.printStackTrace();
         } finally {
-            closeTCPConnection();
+            closeUDPConnection();
             System.exit(0);
         }
     }
 
-    private void sendRequest() {
-        out.print(request.getMethod().name() + " " + request.getPath() + request.getQuery() + " " + "HTTP/1.0" + EOL);
-        out.print("Host: " + request.getHost() + EOL);
+    private void sendRequest() throws IOException {
+        String payload = constructPayload();
+        Packet p = new Packet.Builder()
+                .setType(0)
+                .setSequenceNumber(1L)
+                .setPortNumber(request.getPort())
+                .setPeerAddress(request.getAddress())
+                .setPayload(payload.getBytes())
+                .create();
 
-        // Send request headers
-        if(request.getHeaders().size() > 0) {
+        byte[] packetToBytes = p.toBytes();
+        clientSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+    }
+
+    private String constructPayload() {
+        String requestLine = request.getMethod().name() + " " + request.getPath() + request.getQuery() + " " + "HTTP/1.0" + EOL;
+        String hostHeader = "Host: " + request.getHost() + EOL;
+
+        String headers = "";
+        if (request.getHeaders().size() > 0) {
             for (String header : request.getHeaders()) {
-                out.print(header + EOL);
+                headers += header + EOL;
             }
         }
 
-        // Send data
+        String body = "";
         if (request instanceof PostRequest) {
-            out.print(EOL);
-            out.print(((PostRequest) request).getData() + EOL);
+            body = EOL +
+                    ((PostRequest) request).getData() + EOL;
         }
-        out.print(EOL);
+
+        return requestLine + hostHeader + headers + body + EOL;
     }
 
     private void readResponse() {
-        String line = "";
+        logger.log(Level.INFO, "Reading server's response...");
+        Packet responsePacket;
+        String responsePayload = "";
+        try {
+            byte[] buff = new byte[Packet.MAX_LEN];
+            DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
+            clientSocket.receive(datagramPacket);
 
+            responsePacket = Packet.fromBytes(datagramPacket.getData());
+            responsePayload = new String(responsePacket.getPayload(), UTF_8);
+            logger.info("Packet: {" + responsePacket + "}");
+            logger.info("Payload: {" + responsePayload + "}");
+
+        } catch (SocketException socketException) {
+            socketException.printStackTrace();
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+
+        String[] responseLines = responsePayload.split(EOL);
+        int lineCounter = 0;
         try {
             // Read status line and check if it is a redirect
-            line = in.readLine();
+            String line = responseLines.length >= 1 ? responseLines[lineCounter] : null;
 
             boolean shouldRedirect = shouldRedirect(line);
 
             // Parse through response headers
-            line = in.readLine();
+            line = responseLines.length >= 2 ? responseLines[++lineCounter] : null;
             while (line != null && !line.isEmpty() && !line.startsWith("{")) {
 
                 //Search headers for Location: redirectURI
@@ -99,7 +138,7 @@ public class HttpClientLibrary {
 
                 if (isVerbose)
                     printLine(line);
-                line = in.readLine();
+                line = responseLines.length >= ++lineCounter ? responseLines[lineCounter] : null;
             }
 
             // There is an error if the redirect link is not in the response headers
@@ -111,7 +150,7 @@ public class HttpClientLibrary {
             // Print out response body
             while (line != null) {
                 printLine(line);
-                line = in.readLine();
+                line = responseLines.length >= ++lineCounter ? responseLines[lineCounter] : null;
             }
 
             if (writer != null)
@@ -123,16 +162,8 @@ public class HttpClientLibrary {
         }
     }
 
-    private void closeTCPConnection() {
-        // Close streams
-        try {
-            in.close();
-            out.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(0);
-        }
+    private void closeUDPConnection() {
+        clientSocket.close();
     }
 
     private boolean shouldRedirect(String line) {
@@ -166,7 +197,7 @@ public class HttpClientLibrary {
 
     private void redirectTo(String redirectURI) {
         // Close existing socket
-        closeTCPConnection();
+        closeUDPConnection();
 
         if (redirectCounter < REDIRECT_MAXIMUM && request instanceof Redirectable) {
             System.out.println("------------ REDIRECTED -------------");
