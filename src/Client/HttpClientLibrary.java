@@ -4,6 +4,7 @@ import Client.Requests.PostRequest;
 import Client.Requests.Redirectable;
 import Client.Requests.Request;
 import Helpers.Packet;
+import Helpers.PacketType;
 import Helpers.Status;
 import Helpers.UDPConnection;
 
@@ -13,6 +14,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -66,27 +70,39 @@ public class HttpClientLibrary {
         }
     }
 
-    //TODO: Implement the 3-way handshake
-    private void handshake() {
-        // Random sequence number
-//        int initialSequenceNumber = 0;
-//        sendSYN(initialSequenceNumber);
-//        int secondSequenceNumber = receiveSYN_ACK(initialSequenceNumber);
-//        sendSYN(++secondSequenceNumber);
+    private void handshake() throws IOException {
+        int initialSequenceNumber = UDPConnection.getRandomSequenceNumber();
+
+        // Send SYN
+        logger.info("Initiate 3-way handshake ...");
+        logger.info("Send SYN packet with seq number " + initialSequenceNumber);
+        UDPConnection.sendSYN(initialSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
+
+        // Receive SYN_ACK
+        Packet packet = receiveAndVerifySYN_ACK(initialSequenceNumber);
+
+        // Send ACK
+        logger.info("Respond with an ACK {ACK:" + packet.getSequenceNumber() + 1 + "}");
+        UDPConnection.sendACK(packet.getSequenceNumber() + 1, packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
     }
-//
-//    //Send synchronization sequence number
-//    private void sendSYN(int sequenceNumber) {
-//        //1. send a SYNC packet with the sequenceNumber
-//    }
-//
-//    //Receive and verify acknowledgment, return the second synchronization seq number
-//    private int receiveSYN_ACK(int initialSequenceNumber) {
-//        // 1. Make sure that the received sequence number is equal to initialSequenceNumber + 1
-//        //if not verifies, send nak
-//        // 2. return the synchronization sequence number sent by the server
-//        return 0;
-//    }
+
+    private Packet receiveAndVerifySYN_ACK(int initialSequenceNumber) throws IOException {
+        Packet packet = UDPConnection.receivePacket(clientSocket);
+
+        UDPConnection.verifyPacketType(PacketType.SYN_ACK, packet, clientSocket);
+        logger.info("Received a SYN_ACK packet");
+
+        logger.info("Verifying ACK ...");
+        int receivedAcknowledgment = getIntFromPayload(packet.getPayload());
+        if (receivedAcknowledgment != initialSequenceNumber + 1) {
+            logger.info("Unexpected ACK sequence number " + receivedAcknowledgment + "instead of " + (initialSequenceNumber + 1));
+            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
+            System.exit(-1);
+        }
+
+        logger.info("ACK is verified: {seq sent: " + initialSequenceNumber + ", seq received: " + packet.getPayload()[0]);
+        return packet;
+    }
 
     private void sendRequest() throws IOException {
         String payload = constructPayload();
@@ -239,6 +255,13 @@ public class HttpClientLibrary {
             writeToFile(line);
         else
             System.out.println(line);
+    }
+
+    public int getIntFromPayload(byte[] payload){
+        IntBuffer intBuf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
+        int[] array = new int[intBuf.remaining()];
+        intBuf.get(array);
+        return array[0];
     }
 
 }

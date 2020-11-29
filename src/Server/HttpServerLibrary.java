@@ -1,9 +1,6 @@
 package Server;
 
-import Helpers.HTTPMethod;
-import Helpers.Packet;
-import Helpers.Status;
-import Helpers.UDPConnection;
+import Helpers.*;
 import Server.Responses.Response;
 
 import java.io.*;
@@ -50,9 +47,7 @@ class HttpServerLibrary {
 
             handshake();
 
-            receiveData();
-
-            requestPacket = UDPConnection.receiveData(serverSocket);
+            requestPacket = UDPConnection.receivePacket(serverSocket);
             requestPayload = new String(requestPacket.getPayload(), UTF_8);
 
         } catch (IOException socketException) {
@@ -70,16 +65,50 @@ class HttpServerLibrary {
     }
 
     //TODO: Implement the 3-way handshake
-    private void handshake() {
-        // Random sequence number
-//        int initialSequenceNumber = receiveSYN();
-        //if not verified, send nak
-//        sendSYN_ACK(++initialSequenceNumber);
-//        receiveSYNC(); // make sure that the received sync is incremented
+    private void handshake() throws IOException {
+        // Receive SYN
+        Packet packet = receiveSYNPacket();
+
+        //Send SYN_ACK
+        int sequenceNumberToSynchronize = UDPConnection.getRandomSequenceNumber();
+        respondWithSYN_ACK(sequenceNumberToSynchronize, packet);
+
+        // Receive ACK
+        receiveAndVerifyFinalACK(sequenceNumberToSynchronize);
+    }
+
+    private Packet receiveSYNPacket() throws IOException {
+        Packet packet = UDPConnection.receivePacket(serverSocket);
+
+        UDPConnection.verifyPacketType(PacketType.SYN, packet, serverSocket);
+        logger.info("Received a SYN packet");
+        return packet;
+    }
+
+    private void respondWithSYN_ACK(int sequenceNumber, Packet packet) throws IOException {
+        logger.info(" Respond with a SYN_ACK {SYN:" + sequenceNumber +
+                ", ACK: " + (packet.getSequenceNumber() + 1) + "}");
+        UDPConnection.sendSYN_ACK(packet.getSequenceNumber() + 1,
+                sequenceNumber, packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
+    }
+
+    private void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize) throws IOException {
+        Packet packet = UDPConnection.receivePacket(serverSocket);
+        UDPConnection.verifyPacketType(PacketType.ACK, packet, serverSocket);
+
+        logger.info("Received a ACK packet");
+        logger.info("Verifying ACK ...");
+        if (packet.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
+            logger.info("Unexpected ACK sequence number " + packet.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
+            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
+            System.exit(-1);
+        }
+        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packet.getSequenceNumber());
     }
 
     //TODO: Receive data using the ARQ method   [IMPLEMENT THE SLECTIVE-REPEAT ARQ]
-    private void receiveData(){}
+    private void receiveData() {
+    }
 
     // This method reads the requests sent by the client and creates a Response object
     private Response createResponseFrom(String request) {
