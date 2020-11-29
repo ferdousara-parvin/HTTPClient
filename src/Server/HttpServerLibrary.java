@@ -1,12 +1,11 @@
 package Server;
 
-import Helpers.HTTPMethod;
-import Helpers.Packet;
-import Helpers.Status;
+import Helpers.*;
 import Server.Responses.Response;
 
 import java.io.*;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -25,9 +24,6 @@ class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
     private DatagramSocket serverSocket;
-
-    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
-    SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private final static String EOL = "\r\n";
 
@@ -49,11 +45,9 @@ class HttpServerLibrary {
             serverSocket = new DatagramSocket(port);
             logger.log(Level.INFO, "Listening on port " + port + " ...");
 
-            byte[] buff = new byte[Packet.MAX_LEN];
-            DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
-            serverSocket.receive(datagramPacket);
+            handshake();
 
-            requestPacket = Packet.fromBytes(datagramPacket.getData());
+            requestPacket = UDPConnection.receivePacket(serverSocket);
             requestPayload = new String(requestPacket.getPayload(), UTF_8);
 
         } catch (IOException socketException) {
@@ -68,6 +62,52 @@ class HttpServerLibrary {
 
         logger.log(Level.INFO, "Server closing connection...");
         closeUDPConnection();
+    }
+
+    //TODO: Implement the 3-way handshake
+    private void handshake() throws IOException {
+        // Receive SYN
+        Packet packet = receiveSYNPacket();
+
+        //Send SYN_ACK
+        int sequenceNumberToSynchronize = UDPConnection.getRandomSequenceNumber();
+        respondWithSYN_ACK(sequenceNumberToSynchronize, packet);
+
+        // Receive ACK
+        receiveAndVerifyFinalACK(sequenceNumberToSynchronize);
+    }
+
+    private Packet receiveSYNPacket() throws IOException {
+        Packet packet = UDPConnection.receivePacket(serverSocket);
+
+        UDPConnection.verifyPacketType(PacketType.SYN, packet, serverSocket);
+        logger.info("Received a SYN packet");
+        return packet;
+    }
+
+    private void respondWithSYN_ACK(int sequenceNumber, Packet packet) throws IOException {
+        logger.info(" Respond with a SYN_ACK {SYN:" + sequenceNumber +
+                ", ACK: " + (packet.getSequenceNumber() + 1) + "}");
+        UDPConnection.sendSYN_ACK(packet.getSequenceNumber() + 1,
+                sequenceNumber, packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
+    }
+
+    private void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize) throws IOException {
+        Packet packet = UDPConnection.receivePacket(serverSocket);
+        UDPConnection.verifyPacketType(PacketType.ACK, packet, serverSocket);
+
+        logger.info("Received a ACK packet");
+        logger.info("Verifying ACK ...");
+        if (packet.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
+            logger.info("Unexpected ACK sequence number " + packet.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
+            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
+            System.exit(-1);
+        }
+        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packet.getSequenceNumber());
+    }
+
+    //TODO: Receive data using the ARQ method   [IMPLEMENT THE SLECTIVE-REPEAT ARQ]
+    private void receiveData() {
     }
 
     // This method reads the requests sent by the client and creates a Response object
@@ -173,7 +213,7 @@ class HttpServerLibrary {
         byte[] packetToBytes = responsePacket.toBytes();
 
         try {
-            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, UDPConnection.routerAddress));
         } catch (IOException exception) {
             exception.printStackTrace();
         }
@@ -247,7 +287,6 @@ class HttpServerLibrary {
         }
         return data.toString().trim();
     }
-
 
     private void closeUDPConnection() {
         serverSocket.close();

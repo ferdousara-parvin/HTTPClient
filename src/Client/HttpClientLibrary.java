@@ -4,10 +4,19 @@ import Client.Requests.PostRequest;
 import Client.Requests.Redirectable;
 import Client.Requests.Request;
 import Helpers.Packet;
+import Helpers.PacketType;
 import Helpers.Status;
+import Helpers.UDPConnection;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,8 +35,6 @@ public class HttpClientLibrary {
     private final static int REDIRECT_MAXIMUM = 5;
     private BufferedWriter writer;
     private final static String EOL = "\r\n";
-    //TODO: Either add router port and address as options for cli or make sure that both client and server access the same router
-    private final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private static final Logger logger = Logger.getLogger(HttpClientLibrary.class.getName());
 
@@ -52,6 +59,7 @@ public class HttpClientLibrary {
     private void performRequest() {
         try {
             clientSocket = new DatagramSocket();
+            handshake();
             sendRequest();
             readResponse();
         } catch (IOException exception) {
@@ -62,18 +70,43 @@ public class HttpClientLibrary {
         }
     }
 
+    private void handshake() throws IOException {
+        int initialSequenceNumber = UDPConnection.getRandomSequenceNumber();
+
+        // Send SYN
+        logger.info("Initiate 3-way handshake ...");
+        logger.info("Send SYN packet with seq number " + initialSequenceNumber);
+        UDPConnection.sendSYN(initialSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
+
+        // Receive SYN_ACK
+        Packet packet = receiveAndVerifySYN_ACK(initialSequenceNumber);
+
+        // Send ACK
+        logger.info("Respond with an ACK {ACK:" + packet.getSequenceNumber() + 1 + "}");
+        UDPConnection.sendACK(packet.getSequenceNumber() + 1, packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
+    }
+
+    private Packet receiveAndVerifySYN_ACK(int initialSequenceNumber) throws IOException {
+        Packet packet = UDPConnection.receivePacket(clientSocket);
+
+        UDPConnection.verifyPacketType(PacketType.SYN_ACK, packet, clientSocket);
+        logger.info("Received a SYN_ACK packet");
+
+        logger.info("Verifying ACK ...");
+        int receivedAcknowledgment = getIntFromPayload(packet.getPayload());
+        if (receivedAcknowledgment != initialSequenceNumber + 1) {
+            logger.info("Unexpected ACK sequence number " + receivedAcknowledgment + "instead of " + (initialSequenceNumber + 1));
+            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
+            System.exit(-1);
+        }
+
+        logger.info("ACK is verified: {seq sent: " + initialSequenceNumber + ", seq received: " + packet.getPayload()[0]);
+        return packet;
+    }
+
     private void sendRequest() throws IOException {
         String payload = constructPayload();
-        Packet p = new Packet.Builder()
-                .setType(0)
-                .setSequenceNumber(1L)
-                .setPortNumber(request.getPort())
-                .setPeerAddress(request.getAddress())
-                .setPayload(payload.getBytes())
-                .create();
-
-        byte[] packetToBytes = p.toBytes();
-        clientSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        UDPConnection.sendData(1, payload, request, clientSocket);
     }
 
     private String constructPayload() {
@@ -222,6 +255,13 @@ public class HttpClientLibrary {
             writeToFile(line);
         else
             System.out.println(line);
+    }
+
+    public int getIntFromPayload(byte[] payload){
+        IntBuffer intBuf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
+        int[] array = new int[intBuf.remaining()];
+        intBuf.get(array);
+        return array[0];
     }
 
 }

@@ -13,16 +13,16 @@ import java.nio.ByteOrder;
 public class Packet {
 
     public static final int MIN_LEN = 11;
-    public static final int MAX_LEN = 11 + 1024;
+    public static final int MAX_LEN = 1024;
 
     private final int type;
-    private final long sequenceNumber;
+    private final int sequenceNumber;
     private final InetAddress peerAddress;
     private final int peerPort;
     private final byte[] payload;
 
 
-    public Packet(int type, long sequenceNumber, InetAddress peerAddress, int peerPort, byte[] payload) {
+    public Packet(int type, int sequenceNumber, InetAddress peerAddress, int peerPort, byte[] payload) {
         this.type = type;
         this.sequenceNumber = sequenceNumber;
         this.peerAddress = peerAddress;
@@ -34,7 +34,7 @@ public class Packet {
         return type;
     }
 
-    public long getSequenceNumber() {
+    public int getSequenceNumber() {
         return sequenceNumber;
     }
 
@@ -70,6 +70,7 @@ public class Packet {
     private void write(ByteBuffer buf) {
         buf.put((byte) type);
         buf.putInt((int) sequenceNumber);
+        //TODO: Add check to make sure that the address is not over 4 bytes
         buf.put(peerAddress.getAddress());
         buf.putShort((short) peerPort);
         buf.put(payload);
@@ -107,7 +108,7 @@ public class Packet {
         Builder builder = new Builder();
 
         builder.setType(Byte.toUnsignedInt(buf.get()));
-        builder.setSequenceNumber(Integer.toUnsignedLong(buf.getInt()));
+        builder.setSequenceNumber(buf.getInt());
 
         byte[] host = new byte[]{buf.get(), buf.get(), buf.get(), buf.get()};
         builder.setPeerAddress(Inet4Address.getByAddress(host));
@@ -137,17 +138,17 @@ public class Packet {
 
     public static class Builder {
         private int type;
-        private long sequenceNumber;
+        private int sequenceNumber;
         private InetAddress peerAddress;
         private int portNumber;
-        private byte[] payload;
+        private byte[] payload = {};
 
         public Builder setType(int type) {
             this.type = type;
             return this;
         }
 
-        public Builder setSequenceNumber(long sequenceNumber) {
+        public Builder setSequenceNumber(int sequenceNumber) {
             this.sequenceNumber = sequenceNumber;
             return this;
         }
