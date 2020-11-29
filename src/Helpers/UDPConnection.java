@@ -14,6 +14,7 @@ public class UDPConnection {
     public final static int WINDOW_SIZE = 5;
     public final static int MAX_SEQUENCE_NUMBER = 20;
     public final static int MAX_PAYLOAD_SIZE = Packet.MAX_LEN - Packet.MIN_LEN;
+    public final static long DELAY_BEFORE_TIMEOUT = 1000;
     public final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private static final Logger logger = Logger.getLogger(UDPConnection.class.getName());
@@ -214,7 +215,7 @@ public class UDPConnection {
 
                 // Start a timer
                 Timer timer = new Timer();
-                timer.schedule(new ResendPacket(packet, i, socket), 10000);
+                timer.schedule(new ResendPacket(packet, i, socket), DELAY_BEFORE_TIMEOUT);
 
                 sentList.set(i, true);
             }
@@ -239,7 +240,7 @@ public class UDPConnection {
 
                 // Start a timer
                 Timer timer = new Timer();
-                timer.schedule(new ResendPacket(packetToBeSentAgain, indexInAckList, socket), 1);
+                timer.schedule(new ResendPacket(packetToBeSentAgain, indexInAckList, socket), DELAY_BEFORE_TIMEOUT);
             }
         }
     }
@@ -249,6 +250,7 @@ public class UDPConnection {
     public static ArrayList<Packet> receiveAllPackets(DatagramSocket socket) {
         Packet receivedPacket = receivePacket(socket);
 
+        // TODO: handle null exception
         while (receivedPacket != null && receivedPacket.getType() != PacketType.FIN.value) {
             if (receivedPacket.getType() == PacketType.DATA.value) {
                 // Packet with sequence number b/w rcv_base and rcv_base+N-1 where N = window size

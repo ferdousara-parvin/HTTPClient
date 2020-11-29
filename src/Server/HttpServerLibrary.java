@@ -72,7 +72,7 @@ class HttpServerLibrary {
                 sequenceNumberToSynchronize, packetSYN.getPeerPort(), packetSYN.getPeerAddress(), serverSocket);
 
         // Receive ACK
-        receiveAndVerifyFinalACK(sequenceNumberToSynchronize);
+        UDPConnection.receiveAndVerifyFinalACK(sequenceNumberToSynchronize, serverSocket);
     }
 
     private Packet receiveAndVerifySYN() {
@@ -83,24 +83,10 @@ class HttpServerLibrary {
         return packet;
     }
 
-    private void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize) {
-        Packet packet = UDPConnection.receivePacket(serverSocket);
-        UDPConnection.verifyPacketType(PacketType.ACK, packet, serverSocket);
-
-        logger.info("Received a ACK packet");
-        logger.info("Verifying ACK ...");
-        if (packet.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
-            logger.info("Unexpected ACK sequence number " + packet.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
-            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
-            System.exit(-1);
-        }
-        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packet.getSequenceNumber() + "}");
-    }
-
     // ------------- 3-way handshake -----------------------
 
     private void sendResponse() {
-        logger.log(Level.INFO, "Receiving packets form client...");
+        logger.log(Level.INFO, "Receiving packets from client...");
         finalPacketsInOrder = UDPConnection.receiveAllPackets(serverSocket);
 
         logger.log(Level.INFO, "Building response from packets...");
@@ -147,7 +133,7 @@ class HttpServerLibrary {
                                 return new Response(Status.BAD_REQUEST);
                             }
                             break;
-                        case HTTP_VERSION: // TODO: what's up here?
+                        case HTTP_VERSION:
 //                                httpVersion = statusLineComponents[HTTP_VERSION];
                             // Uncomment these lines if the server does only support early versions of HTTP (kept for demonstration purposes)
 //                                if (!(httpVersion.equalsIgnoreCase("HTTP/1.0") || httpVersion.equalsIgnoreCase("HTTP/1.1")))
@@ -199,7 +185,7 @@ class HttpServerLibrary {
     }
 
     private void sendResponse(Response response) {
-        logger.log(Level.INFO, "Constructing respond to send to client...");
+        logger.log(Level.INFO, "Constructing response to send to client...");
         if (response.getHttpMethod() != null) {
             switch (response.getHttpMethod()) {
                 case GET:
@@ -210,10 +196,6 @@ class HttpServerLibrary {
                     break;
             }
         }
-
-        // TODO: remove? for debugging purposes?
-        logger.log(Level.INFO, "Server constructed response...");
-        logger.log(Level.INFO, response.getResponse());
 
         logger.log(Level.INFO, "Building packets from response object...");
         ArrayList<Packet> packets = UDPConnection.buildPackets(response.getResponse(), PacketType.DATA, peerPort, peerAddress);
