@@ -13,7 +13,7 @@ import java.nio.ByteOrder;
 public class Packet {
 
     public static final int MIN_LEN = 11;
-    public static final int MAX_LEN = 1024;
+    public static final int MAX_LEN = 20; // TODO: change back to 1024 after
 
     private final int type;
     private final int sequenceNumber;
@@ -70,7 +70,6 @@ public class Packet {
     private void write(ByteBuffer buf) {
         buf.put((byte) type);
         buf.putInt((int) sequenceNumber);
-        //TODO: Add check to make sure that the address is not over 4 bytes
         buf.put(peerAddress.getAddress());
         buf.putShort((short) peerPort);
         buf.put(payload);

@@ -1,100 +1,299 @@
 package Helpers;
 
+import Client.HttpClientLibrary;
 import Client.Requests.Request;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.util.Random;
+import java.util.*;
+import java.util.logging.Logger;
 
 public class UDPConnection {
-    //TODO: Think about how to implement the queue of chopped up payload packets will be ... when to move the window?
-     public final static int WINDOW_SIZE = 5;
-     public final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
-     public final static Random random = new Random(400);
+    public final static int WINDOW_SIZE = 5;
+    public final static int MAX_SEQUENCE_NUMBER = 20;
+    public final static int MAX_PAYLOAD_SIZE = Packet.MAX_LEN - Packet.MIN_LEN;
+    public final static long DELAY_BEFORE_TIMEOUT = 1000;
+    public final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
-    public static void sendData(int sequenceNumber, String payload, Request request, DatagramSocket socket) throws IOException {
-        int MAX_PAYLOAD_SIZE = Packet.MAX_LEN - Packet.MIN_LEN;
+    private static final Logger logger = Logger.getLogger(UDPConnection.class.getName());
 
-        if(payload.getBytes().length > MAX_PAYLOAD_SIZE){
-            //TODO: Divide the data into correctly sized payloads
+    // Selective repeat
+    private static int windowHead = 0;
+    private static int windowTail = UDPConnection.WINDOW_SIZE - 1;
+    private static ArrayList<Boolean> ackList;
+    private static ArrayList<Boolean> sentList;
+
+    // Receiver receives packets from sender
+    private static int rcv_base = 0;
+    private static int rcv_tail = UDPConnection.WINDOW_SIZE - 1;
+    private static ArrayList<Packet> finalPacketsInOrder = new ArrayList<>();
+    private static ArrayList<Packet> packetsInBuffer = new ArrayList<>();
+
+    // -----------BUILD PACKETS---------------------
+
+    public static ArrayList<Packet> buildPackets(String entirePayload, PacketType packetType, int peer_port, InetAddress peer_address) {
+        // Note: Payload of each packet should be between 0 and 1013 bytes
+        ArrayList<Packet> arrayOfPackets = new ArrayList<>();
+        byte[] entirePayloadInBytes = entirePayload.getBytes();
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(entirePayloadInBytes);
+        byte[] buffer = new byte[UDPConnection.MAX_PAYLOAD_SIZE];
+        byte[] payload;
+        int len;
+        int counter = 0;
+        int counterSequenceNumber = 0;
+
+        try {
+            while ((len = byteArrayInputStream.read(buffer)) > 0) {
+                payload = Arrays.copyOfRange(entirePayloadInBytes, counter, counter + len);
+                Packet packet = buildPacket(packetType, payload, peer_port, peer_address);
+                packet = packet.toBuilder().setSequenceNumber(counterSequenceNumber % MAX_SEQUENCE_NUMBER).create();
+                arrayOfPackets.add(packet);
+                counterSequenceNumber++;
+                counter = counter + len;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
-        Packet packet = new Packet.Builder()
-                .setType(PacketType.DATA.value)
-                .setSequenceNumber(sequenceNumber)
-                .setPortNumber(request.getPort())
-                .setPeerAddress(request.getAddress())
-                .setPayload(payload.getBytes())
+        return arrayOfPackets;
+    }
+
+    private static Packet buildPacket(PacketType packetType, byte[] payload, int peer_port, InetAddress peer_address) {
+        return new Packet.Builder()
+                .setType(packetType.value)
+                .setPortNumber(peer_port)
+                .setPeerAddress(peer_address)
+                .setPayload(payload)
                 .create();
-
-        byte[] packetToBytes = packet.toBytes();
-        socket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
     }
 
-    public static void sendSYN(int sequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) throws IOException {
-        send(PacketType.SYN, sequenceNumber, peer_port, peer_address, socket);
+    // -----------FLAGS---------------------
+
+    public static void sendSYN(int randomSequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) {
+        byte[] payload = {};
+        send(PacketType.SYN, randomSequenceNumber, peer_port, peer_address, socket, payload);
     }
 
-    public static void sendACK(int incrementedSequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) throws IOException {
-        send(PacketType.ACK, incrementedSequenceNumber, peer_port, peer_address, socket);
+    public static void sendACK(int incrementedSequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) {
+        byte[] payload = {};
+        send(PacketType.ACK, incrementedSequenceNumber, peer_port, peer_address, socket, payload);
     }
 
-    public static void sendNAK(int peer_port, InetAddress peer_address, DatagramSocket socket) throws IOException {
-        send(PacketType.NAK, 0, peer_port, peer_address, socket);
+    public static void sendNAK(int peer_port, InetAddress peer_address, DatagramSocket socket) {
+        byte[] payload = {};
+        send(PacketType.NAK, 0, peer_port, peer_address, socket, payload);
     }
 
-    public static void sendSYN_ACK(int incrementedSequenceNumber, int sequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) throws IOException {
+    public static void sendFIN(int randomSequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) {
+        byte[] payload = {};
+        send(PacketType.FIN, randomSequenceNumber, peer_port, peer_address, socket, payload);
+    }
+
+    public static void sendSYN_ACK(int incrementedSequenceNumber, int randomSequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) {
         // Send acknowledgment as payload and new number to synchronize as sequence number
         ByteBuffer byteBuffer = ByteBuffer.allocate(Integer.BYTES);
         byteBuffer.putInt(incrementedSequenceNumber);
         byte[] payload = byteBuffer.array();
+        send(PacketType.SYN_ACK, randomSequenceNumber, peer_port, peer_address, socket, payload);
+    }
+
+
+    private static void send(PacketType type, int sequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket, byte[] payload) {
         Packet packet = new Packet.Builder()
-                .setType(PacketType.SYN_ACK.value)
+                .setType(type.value)
                 .setSequenceNumber(sequenceNumber)
                 .setPortNumber(peer_port)
                 .setPeerAddress(peer_address)
                 .setPayload(payload)
                 .create();
 
+        sendPacket(packet, socket);
+    }
+
+    private static void sendPacket(Packet packet, DatagramSocket socket) {
+        // Send packet
         byte[] packetToBytes = packet.toBytes();
-        socket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        try {
+            socket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    private static void send(PacketType type, int sequenceNumber, int peer_port, InetAddress peer_address, DatagramSocket socket) throws IOException {
-        Packet packet = new Packet.Builder()
-                .setType(type.value)
-                .setSequenceNumber(sequenceNumber)
-                .setPortNumber(peer_port)
-                .setPeerAddress(peer_address)
-                .create();
+    public static Packet receivePacket(DatagramSocket socket) {
+        DatagramPacket datagramPacket;
+        try {
+            byte[] buff = new byte[Packet.MAX_LEN];
+            datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
+            socket.receive(datagramPacket);
+            return Packet.fromBytes(datagramPacket.getData());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-        byte[] packetToBytes = packet.toBytes();
-        socket.send(new DatagramPacket(packetToBytes, packetToBytes.length, routerAddress));
+        return null;
     }
 
-    public static Packet receivePacket(DatagramSocket socket) throws IOException {
-        byte[] buff = new byte[Packet.MAX_LEN];
-        DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
-        socket.receive(datagramPacket);
+    public static void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize, DatagramSocket socket) {
+        Packet packetACK = UDPConnection.receivePacket(socket);
+        UDPConnection.verifyPacketType(PacketType.ACK, packetACK, socket);
 
-        return Packet.fromBytes(datagramPacket.getData());
+        logger.info("Received a ACK packet");
+        logger.info("Verifying ACK...");
+        if (packetACK.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
+            logger.info("Unexpected ACK sequence number " + packetACK.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
+            UDPConnection.sendNAK(packetACK.getPeerPort(), packetACK.getPeerAddress(), socket);
+            System.exit(-1);
+        }
+        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packetACK.getSequenceNumber() + "}");
     }
 
-    public static int getRandomSequenceNumber(){
-        int sequenceNumber = random.nextInt();
-        sequenceNumber *= sequenceNumber < 0 ? -1 : 1;
-        return sequenceNumber;
-    }
-
-    public static void verifyPacketType(PacketType expectedPacketType, Packet packet, DatagramSocket socket) throws IOException {
-        while (packet.getType() != expectedPacketType.value) {
+    public static void verifyPacketType(PacketType expectedPacketType, Packet packet, DatagramSocket socket) {
+        if (packet.getType() != expectedPacketType.value) {
             if (packet.getType() != PacketType.NAK.value) {
-               sendNAK(packet.getPeerPort(), packet.getPeerAddress(), socket);
+                sendNAK(packet.getPeerPort(), packet.getPeerAddress(), socket);
             }
             socket.close();
             System.exit(-1);
         }
     }
 
+    public static int getRandomSequenceNumber() {
+        return (int)(Math.random()*100);
+    }
+
+    // --------------SELECTIVE REPEAT------------------------------
+    public static void sendUsingSelectiveRepeat(ArrayList<Packet> packets, int peerPort, InetAddress peerAddress, DatagramSocket socket) {
+        // Set up
+        ackList = new ArrayList<>(Arrays.asList(new Boolean[packets.size()]));
+        sentList = new ArrayList<>(Arrays.asList(new Boolean[packets.size()]));
+        Collections.fill(ackList, Boolean.FALSE);
+        Collections.fill(sentList, Boolean.FALSE);
+
+        // Send data packets using selective repeat
+        while(ackList.contains(false)) {
+            sendWindow(packets, socket);
+
+            Packet response = receivePacket(socket);
+            if (response != null && response.getType() == PacketType.ACK.value) {
+                ackList.set((int) response.getSequenceNumber()-1, true);
+                // Slide window
+                if (windowTail < ackList.size() && ackList.get(windowHead)) {
+                    int newWindowHead = windowHead;
+                    int newWindowTail = windowTail;
+                    for(int i = windowHead; i <= windowTail; i++) {
+                        if(ackList.get(i)) {
+                            newWindowHead += 1;
+                            newWindowTail += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    windowHead = newWindowHead;
+                    windowTail = newWindowTail;
+                }
+            }
+        }
+
+        // Send FIN to let server know that client is done sending data
+        int finalSequenceNumber = UDPConnection.getRandomSequenceNumber();
+        sendFIN(finalSequenceNumber, peerPort, peerAddress, socket);
+
+        // Wait for ACK from server
+        receiveAndVerifyFinalACK(finalSequenceNumber, socket);
+
+        resetVars();
+    }
+
+    private static void sendWindow(ArrayList<Packet> packets, DatagramSocket socket) {
+        for (int i = windowHead; i <= windowTail && windowTail < ackList.size(); i++) {
+            if (!ackList.get(i) && !sentList.get(i)) { // TODO: do we actually need ackList check here?
+                Packet packet = packets.get(i);
+                sendPacket(packets.get(i), socket);
+
+                // Start a timer
+                Timer timer = new Timer();
+                timer.schedule(new ResendPacket(packet, i, socket), DELAY_BEFORE_TIMEOUT);
+
+                sentList.set(i, true);
+            }
+        }
+    }
+
+    private static class ResendPacket extends TimerTask {
+        private Packet packetToBeSentAgain;
+        private int indexInAckList;
+        private DatagramSocket socket;
+
+        ResendPacket(Packet packetToBeSentAgain, int indexInAckList, DatagramSocket socket) {
+            this.packetToBeSentAgain = packetToBeSentAgain;
+            this.indexInAckList = indexInAckList;
+            this.socket = socket;
+        }
+
+        public void run() {
+            if(!ackList.get(indexInAckList)) {
+                logger.info("Packet #" + packetToBeSentAgain.getSequenceNumber() + " has been resent due to timeout");
+                UDPConnection.sendPacket(packetToBeSentAgain, socket);
+
+                // Start a timer
+                Timer timer = new Timer();
+                timer.schedule(new ResendPacket(packetToBeSentAgain, indexInAckList, socket), DELAY_BEFORE_TIMEOUT);
+            }
+        }
+    }
+
+    // --------------SELECTIVE REPEAT------------------------------
+
+    public static ArrayList<Packet> receiveAllPackets(DatagramSocket socket) {
+        Packet receivedPacket = receivePacket(socket);
+
+        // TODO: handle null exception
+        while (receivedPacket != null && receivedPacket.getType() != PacketType.FIN.value) {
+            if (receivedPacket.getType() == PacketType.DATA.value) {
+                // Packet with sequence number b/w rcv_base and rcv_base+N-1 where N = window size
+                if (receivedPacket.getSequenceNumber() >= rcv_base && receivedPacket.getSequenceNumber() <= rcv_tail) {
+                    UDPConnection.sendACK(receivedPacket.getSequenceNumber() + 1, receivedPacket.getPeerPort(), receivedPacket.getPeerAddress(), socket);
+                    packetsInBuffer.add(receivedPacket.getSequenceNumber(), receivedPacket);
+                    if (receivedPacket.getSequenceNumber() == rcv_base) {
+                        for (int i = rcv_base; i < packetsInBuffer.size() && packetsInBuffer.get(i) != null; i++, rcv_base++) {
+                            finalPacketsInOrder.add(packetsInBuffer.get(i));
+                            packetsInBuffer.set(i, null);
+                        } // TODO: modular shit for packetBuffer
+                    }
+
+                    rcv_tail = rcv_base + UDPConnection.WINDOW_SIZE - 1;
+                }
+
+                // Packet with sequence number b/w rcv_base-N and rcv_base-1 where N = window size
+                else if (receivedPacket.getSequenceNumber() >= rcv_base - (UDPConnection.WINDOW_SIZE - 1) && receivedPacket.getSequenceNumber() <= rcv_base - 1) {
+                    UDPConnection.sendACK(receivedPacket.getSequenceNumber() + 1, receivedPacket.getPeerPort(), receivedPacket.getPeerAddress(), socket);
+                }
+
+                // else ignore packet
+            }
+
+            receivedPacket = UDPConnection.receivePacket(socket);
+        }
+
+        logger.info("Receiver received all packets from sender since receiver received FIN with sequence number " + receivedPacket.getSequenceNumber());
+
+        UDPConnection.sendACK(receivedPacket.getSequenceNumber() + 1, receivedPacket.getPeerPort(), receivedPacket.getPeerAddress(), socket);
+
+        return finalPacketsInOrder;
+    }
+
+    private static void resetVars() {
+        windowHead = 0;
+        windowTail = UDPConnection.WINDOW_SIZE - 1;
+        ackList = null;
+        sentList = null;
+
+        rcv_base = 0;
+        rcv_tail = UDPConnection.WINDOW_SIZE - 1;
+        finalPacketsInOrder = new ArrayList<>();
+        packetsInBuffer = new ArrayList<>();
+    }
 }

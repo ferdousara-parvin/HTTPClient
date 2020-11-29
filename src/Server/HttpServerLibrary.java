@@ -1,29 +1,34 @@
 package Server;
 
+import Client.HttpClientLibrary;
 import Helpers.*;
 import Server.Responses.Response;
 
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * This class is the server library. It takes care of opening the TCP connection, reading the request and sending the response.
+ * This class is the server library. It takes care of opening the UDP connection, reading the request and sending the response.
  */
 class HttpServerLibrary {
     private int port;
     private Path baseDirectory;
     private DatagramSocket serverSocket;
+    private ArrayList<Packet> finalPacketsInOrder;
+
+    private int peerPort;
+    private InetAddress peerAddress;
 
     private final static String EOL = "\r\n";
 
@@ -39,45 +44,38 @@ class HttpServerLibrary {
     }
 
     private void start() {
-        String requestPayload = "";
-        Packet requestPacket = null;
         try {
             serverSocket = new DatagramSocket(port);
             logger.log(Level.INFO, "Listening on port " + port + " ...");
-
-            handshake();
-
-            requestPacket = UDPConnection.receivePacket(serverSocket);
-            requestPayload = new String(requestPacket.getPayload(), UTF_8);
-
-        } catch (IOException socketException) {
-            socketException.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
-        logger.log(Level.INFO, "Reading client's request...");
-        Response response = createResponseFrom(requestPayload);
-
-        logger.log(Level.INFO, "Sending response to client...");
-        sendResponse(response, requestPacket);
-
-        logger.log(Level.INFO, "Server closing connection...");
+        threeWayHandshake();
+        sendResponse();
         closeUDPConnection();
     }
 
-    //TODO: Implement the 3-way handshake
-    private void handshake() throws IOException {
-        // Receive SYN
-        Packet packet = receiveSYNPacket();
+    // ------------- 3-way handshake -----------------------
 
-        //Send SYN_ACK
+    private void threeWayHandshake() {
+        // Receive SYN
+        Packet packetSYN = receiveAndVerifySYN();
+        peerAddress = packetSYN.getPeerAddress();
+        peerPort = packetSYN.getPeerPort();
+
+        // Send SYN_ACK
         int sequenceNumberToSynchronize = UDPConnection.getRandomSequenceNumber();
-        respondWithSYN_ACK(sequenceNumberToSynchronize, packet);
+        logger.info(" Respond with a SYN_ACK {SYN:" + sequenceNumberToSynchronize +
+                ", ACK: " + (packetSYN.getSequenceNumber() + 1) + "}");
+        UDPConnection.sendSYN_ACK(packetSYN.getSequenceNumber() + 1,
+                sequenceNumberToSynchronize, packetSYN.getPeerPort(), packetSYN.getPeerAddress(), serverSocket);
 
         // Receive ACK
-        receiveAndVerifyFinalACK(sequenceNumberToSynchronize);
+        UDPConnection.receiveAndVerifyFinalACK(sequenceNumberToSynchronize, serverSocket);
     }
 
-    private Packet receiveSYNPacket() throws IOException {
+    private Packet receiveAndVerifySYN() {
         Packet packet = UDPConnection.receivePacket(serverSocket);
 
         UDPConnection.verifyPacketType(PacketType.SYN, packet, serverSocket);
@@ -85,29 +83,17 @@ class HttpServerLibrary {
         return packet;
     }
 
-    private void respondWithSYN_ACK(int sequenceNumber, Packet packet) throws IOException {
-        logger.info(" Respond with a SYN_ACK {SYN:" + sequenceNumber +
-                ", ACK: " + (packet.getSequenceNumber() + 1) + "}");
-        UDPConnection.sendSYN_ACK(packet.getSequenceNumber() + 1,
-                sequenceNumber, packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
-    }
+    // ------------- 3-way handshake -----------------------
 
-    private void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize) throws IOException {
-        Packet packet = UDPConnection.receivePacket(serverSocket);
-        UDPConnection.verifyPacketType(PacketType.ACK, packet, serverSocket);
+    private void sendResponse() {
+        logger.log(Level.INFO, "Receiving packets from client...");
+        finalPacketsInOrder = UDPConnection.receiveAllPackets(serverSocket);
 
-        logger.info("Received a ACK packet");
-        logger.info("Verifying ACK ...");
-        if (packet.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
-            logger.info("Unexpected ACK sequence number " + packet.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
-            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), serverSocket);
-            System.exit(-1);
-        }
-        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packet.getSequenceNumber());
-    }
+        logger.log(Level.INFO, "Building response from packets...");
+        Response response = createResponseFrom(createRequestFromPackets());
 
-    //TODO: Receive data using the ARQ method   [IMPLEMENT THE SLECTIVE-REPEAT ARQ]
-    private void receiveData() {
+        logger.log(Level.INFO, "Sending response to client...");
+        sendResponse(response);
     }
 
     // This method reads the requests sent by the client and creates a Response object
@@ -189,8 +175,17 @@ class HttpServerLibrary {
 
     }
 
-    // This method determines which type of response to create
-    private void sendResponse(Response response, Packet requestPacket) {
+    private String createRequestFromPackets() {
+        String finalRequest = "";
+        for(Packet packet: finalPacketsInOrder) {
+            finalRequest += new String(packet.getPayload(), UTF_8);
+        }
+
+        return finalRequest;
+    }
+
+    private void sendResponse(Response response) {
+        logger.log(Level.INFO, "Constructing response to send to client...");
         if (response.getHttpMethod() != null) {
             switch (response.getHttpMethod()) {
                 case GET:
@@ -202,21 +197,11 @@ class HttpServerLibrary {
             }
         }
 
-        logger.log(Level.INFO, "Server constructed response...");
-        logger.log(Level.INFO, response.getResponse());
+        logger.log(Level.INFO, "Building packets from response object...");
+        ArrayList<Packet> packets = UDPConnection.buildPackets(response.getResponse(), PacketType.DATA, peerPort, peerAddress);
 
-        String payload = response.getResponse();
-        Packet responsePacket = requestPacket.toBuilder()
-                .setPayload(payload.getBytes())
-                .create();
-
-        byte[] packetToBytes = responsePacket.toBytes();
-
-        try {
-            serverSocket.send(new DatagramPacket(packetToBytes, packetToBytes.length, UDPConnection.routerAddress));
-        } catch (IOException exception) {
-            exception.printStackTrace();
-        }
+        logger.log(Level.INFO, "Sending packets to client using selective repeat...");
+        UDPConnection.sendUsingSelectiveRepeat(packets, peerPort, peerAddress, serverSocket);
     }
 
     // This method constructs a get response
@@ -289,6 +274,8 @@ class HttpServerLibrary {
     }
 
     private void closeUDPConnection() {
+        logger.log(Level.INFO, "Server closing connection...");
         serverSocket.close();
+        System.exit(0);
     }
 }

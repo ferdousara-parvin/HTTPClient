@@ -5,7 +5,8 @@ public enum PacketType {
     ACK(1),
     SYN(2),
     SYN_ACK(3),
-    NAK(4);
+    NAK(4),
+    FIN(5);
 
     public int value;
     PacketType(int i) {
