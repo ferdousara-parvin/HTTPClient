@@ -24,10 +24,11 @@ import java.util.logging.Logger;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * This class is the client library. It takes care of opening the TCP connection, sending the request and reading the response.
+ * This class is the client library. It takes care of opening the UDP connection, sending the request and reading the response.
  */
 public class HttpClientLibrary {
 
+    // TODO: timeout interval calculated, not hardcoded
     private DatagramSocket clientSocket;
     private Request request;
     private boolean isVerbose;
@@ -36,14 +37,9 @@ public class HttpClientLibrary {
     private final static int REDIRECT_MAXIMUM = 5;
     private BufferedWriter writer;
     private final static String EOL = "\r\n";
+    private ArrayList<Packet> finalPacketsInOrder;
 
     private static final Logger logger = Logger.getLogger(HttpClientLibrary.class.getName());
-
-    private static int windowHead = 0;
-    private static int windowTail = UDPConnection.WINDOW_SIZE - 1;
-    private static ArrayList<Boolean> ackList;
-    private static ArrayList<Boolean> sentList;
-
 
     public HttpClientLibrary(Request request, boolean isVerbose) {
         this(request, isVerbose, "");
@@ -66,18 +62,19 @@ public class HttpClientLibrary {
     private void performRequest() {
         try {
             clientSocket = new DatagramSocket();
-            handshake();
-            sendRequest();
-//            readResponse();
-        } catch (IOException exception) {
-            exception.printStackTrace();
-        } finally {
-            closeUDPConnection();
-            System.exit(0);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+
+        threeWayHandshake();
+        sendRequest();
+        readResponse();
+        closeUDPConnection();
     }
 
-    private void handshake() throws IOException {
+    // ------------ 3-way Handshake --------------------------
+    // TODO: add timeout
+    private void threeWayHandshake() {
         int initialSequenceNumber = UDPConnection.getRandomSequenceNumber();
 
         // Send SYN
@@ -86,14 +83,14 @@ public class HttpClientLibrary {
         UDPConnection.sendSYN(initialSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
 
         // Receive SYN_ACK
-        Packet packet = receiveAndVerifySYN_ACK(initialSequenceNumber);
+        Packet packetSYNACK = receiveAndVerifySYN_ACK(initialSequenceNumber);
 
         // Send ACK
-        logger.info("Respond with an ACK {ACK:" + (packet.getSequenceNumber() + 1) + "}");
-        UDPConnection.sendACK(packet.getSequenceNumber() + 1, packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
+        logger.info("Respond with an ACK {ACK:" + (packetSYNACK.getSequenceNumber() + 1) + "}");
+        UDPConnection.sendACK(packetSYNACK.getSequenceNumber() + 1, packetSYNACK.getPeerPort(), packetSYNACK.getPeerAddress(), clientSocket);
     }
 
-    private Packet receiveAndVerifySYN_ACK(int initialSequenceNumber) throws IOException {
+    private Packet receiveAndVerifySYN_ACK(int initialSequenceNumber) {
         Packet packet = UDPConnection.receivePacket(clientSocket);
 
         UDPConnection.verifyPacketType(PacketType.SYN_ACK, packet, clientSocket);
@@ -107,87 +104,21 @@ public class HttpClientLibrary {
             System.exit(-1);
         }
 
-        logger.info("ACK is verified: {seq sent: " + initialSequenceNumber + ", seq received: " + receivedAcknowledgment);
+        logger.info("ACK is verified: {seq sent: " + initialSequenceNumber + ", seq received: " + receivedAcknowledgment + "}");
         return packet;
     }
 
-    private void sendRequest() throws IOException {
-        // Build payload
+    // ------------ 3-way Handshake --------------------------
+
+    private void sendRequest() {
+        logger.log(Level.INFO, "Constructing request to send to server...");
         String payload = constructPayload();
 
-        // Build packets
-        ArrayList<Packet> packets = UDPConnection.buildPackets(payload, PacketType.DATA, request.getPort(), request.getAddress()); // TODO: how to use NAK?
+        logger.log(Level.INFO, "Building packets from request object...");
+        ArrayList<Packet> packets = UDPConnection.buildPackets(payload, PacketType.DATA, request.getPort(), request.getAddress());
 
-        // Send packets using selective repeat
-        sendRequestUsingSelectiveRepeat(packets);
-    }
-
-
-    private void sendRequestUsingSelectiveRepeat(ArrayList<Packet> packets) {
-        // Set up
-        ackList = new ArrayList<>(Arrays.asList(new Boolean[packets.size()]));
-        sentList = new ArrayList<>(Arrays.asList(new Boolean[packets.size()]));
-        Collections.fill(ackList, Boolean.FALSE);
-        Collections.fill(sentList, Boolean.FALSE);
-
-        // Send data packets using selective repeat
-        while(ackList.contains(false)) {
-            sendWindow(packets);
-
-            Packet response = UDPConnection.receivePacket(clientSocket);
-            if (response != null && response.getType() == PacketType.ACK.value) {
-                ackList.set((int) response.getSequenceNumber()-1, true);
-                // Slide window
-                if (windowTail <= ackList.size() && ackList.get(windowHead)) {
-                    windowHead += 1;
-                    windowTail += 1;
-                }
-            }
-        }
-
-        // Send FIN to let receiver know you're done sending data
-        int finalSequenceNumber = UDPConnection.getRandomSequenceNumber();
-        UDPConnection.sendFIN(finalSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
-
-        // Wait for receiver ACK
-        receiveAndVerifyFinalACK(finalSequenceNumber);
-
-        // Wait for receiver DATA
-
-    }
-
-    private void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize) {
-        Packet packet = UDPConnection.receivePacket(clientSocket);
-        try {
-            UDPConnection.verifyPacketType(PacketType.ACK, packet, clientSocket);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        logger.info("Received a ACK packet");
-        logger.info("Verifying ACK ...");
-        if (packet.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
-            logger.info("Unexpected ACK sequence number " + packet.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
-            UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
-            System.exit(-1);
-        }
-        logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packet.getSequenceNumber());
-    }
-
-
-    private void sendWindow(ArrayList<Packet> packets) {
-        for (int i = windowHead; i <= windowTail && windowTail < ackList.size(); i++) {
-            if (!ackList.get(i) && !sentList.get(i)) {
-                Packet packet = packets.get(i);
-                UDPConnection.sendPacket(packets.get(i), clientSocket);
-
-                // Start a timer
-                Timer timer = new Timer();
-                timer.schedule(new ResendPacket(packet, i), 10000);
-
-                sentList.set(i, true);
-            }
-        }
+        logger.log(Level.INFO, "Sending packets to server using selective repeat...");
+        UDPConnection.sendUsingSelectiveRepeat(packets, request.getPort(), request.getAddress(), clientSocket);
     }
 
     private String constructPayload() {
@@ -211,24 +142,15 @@ public class HttpClientLibrary {
     }
 
     private void readResponse() {
+        // Receive all DATA packets from server
+        finalPacketsInOrder = UDPConnection.receiveAllPackets(clientSocket);
+
+        // Read response
+         readResponseFrom(createResponseFromPackets());
+    }
+
+    private void readResponseFrom(String responsePayload) {
         logger.log(Level.INFO, "Reading server's response...");
-        Packet responsePacket;
-        String responsePayload = "";
-        try {
-            byte[] buff = new byte[Packet.MAX_LEN];
-            DatagramPacket datagramPacket = new DatagramPacket(buff, Packet.MAX_LEN);
-            clientSocket.receive(datagramPacket);
-
-            responsePacket = Packet.fromBytes(datagramPacket.getData());
-            responsePayload = new String(responsePacket.getPayload(), UTF_8);
-            logger.info("Packet: {" + responsePacket + "}");
-            logger.info("Payload: {" + responsePayload + "}");
-
-        } catch (SocketException socketException) {
-            socketException.printStackTrace();
-        } catch (IOException exception) {
-            exception.printStackTrace();
-        }
 
         String[] responseLines = responsePayload.split(EOL);
         int lineCounter = 0;
@@ -252,7 +174,7 @@ public class HttpClientLibrary {
 
                 if (isVerbose)
                     printLine(line);
-                line = responseLines.length >= ++lineCounter ? responseLines[lineCounter] : null;
+                line = (responseLines.length-1) >= ++lineCounter ? responseLines[lineCounter] : null;
             }
 
             // There is an error if the redirect link is not in the response headers
@@ -264,7 +186,7 @@ public class HttpClientLibrary {
             // Print out response body
             while (line != null) {
                 printLine(line);
-                line = responseLines.length >= ++lineCounter ? responseLines[lineCounter] : null;
+                line = (responseLines.length-1) >= ++lineCounter ? responseLines[lineCounter] : null;
             }
 
             if (writer != null)
@@ -276,8 +198,19 @@ public class HttpClientLibrary {
         }
     }
 
+    private String createResponseFromPackets() {
+        String finalRequest = "";
+        for(Packet packet: finalPacketsInOrder) {
+            finalRequest += new String(packet.getPayload(), UTF_8);
+        }
+
+        return finalRequest;
+    }
+
     private void closeUDPConnection() {
+        logger.log(Level.INFO, "Client closing connection...");
         clientSocket.close();
+        System.exit(0);
     }
 
     private boolean shouldRedirect(String line) {
@@ -338,26 +271,11 @@ public class HttpClientLibrary {
             System.out.println(line);
     }
 
-    public int getIntFromPayload(byte[] payload){
+    private int getIntFromPayload(byte[] payload){
         IntBuffer intBuf = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
         int[] array = new int[intBuf.remaining()];
         intBuf.get(array);
         return array[0];
-    }
-
-    private class ResendPacket extends TimerTask {
-        private Packet p;
-        int indexInAckList;
-
-        public ResendPacket(Packet p, int indexInAckList) {
-            this.p = p;
-            this.indexInAckList = indexInAckList;
-        }
-
-        public void run() {
-//            if(!ackList.get(indexInAckList))
-//                UDPConnection.sendPacket(p, clientSocket);
-        }
     }
 
 }

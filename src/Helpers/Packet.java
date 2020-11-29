@@ -70,7 +70,6 @@ public class Packet {
     private void write(ByteBuffer buf) {
         buf.put((byte) type);
         buf.putInt((int) sequenceNumber);
-        //TODO: Add check to make sure that the address is not over 4 bytes
         buf.put(peerAddress.getAddress());
         buf.putShort((short) peerPort);
         buf.put(payload);
