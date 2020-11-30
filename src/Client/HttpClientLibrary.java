@@ -7,16 +7,14 @@ import Helpers.Packet;
 import Helpers.PacketType;
 import Helpers.Status;
 import Helpers.UDPConnection;
-
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.sql.Time;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -28,7 +26,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class HttpClientLibrary {
 
-    // TODO: timeout interval calculated, not hardcoded
     private DatagramSocket clientSocket;
     private Request request;
     private boolean isVerbose;
@@ -38,6 +35,8 @@ public class HttpClientLibrary {
     private BufferedWriter writer;
     private final static String EOL = "\r\n";
     private ArrayList<Packet> finalPacketsInOrder;
+
+    private boolean SYN_ACKReceivedForHandshake = false;
 
     private static final Logger logger = Logger.getLogger(HttpClientLibrary.class.getName());
 
@@ -73,7 +72,6 @@ public class HttpClientLibrary {
     }
 
     // ------------ 3-way Handshake --------------------------
-    // TODO: add timeout
     private void threeWayHandshake() {
         int initialSequenceNumber = UDPConnection.getRandomSequenceNumber();
 
@@ -82,18 +80,29 @@ public class HttpClientLibrary {
         logger.info("Send SYN packet with seq number " + initialSequenceNumber);
         UDPConnection.sendSYN(initialSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
 
+        // Start a timer
+        Timer timer = new Timer();
+        timer.schedule(new ResendSyn(initialSequenceNumber), UDPConnection.DELAY_BEFORE_TIMEOUT);
+
         // Receive SYN_ACK
         Packet packetSYNACK = receiveAndVerifySYN_ACK(initialSequenceNumber);
 
         // Send ACK
         logger.info("Respond with an ACK {ACK:" + (packetSYNACK.getSequenceNumber() + 1) + "}");
         UDPConnection.sendACK(packetSYNACK.getSequenceNumber() + 1, packetSYNACK.getPeerPort(), packetSYNACK.getPeerAddress(), clientSocket);
+
+//        // Start a timer
+//        Timer timer2 = new Timer();
+//        timer2.scheduleAtFixedRate(new ResendAck(packetSYNACK), new Date(), UDPConnection.DELAY_BEFORE_TIMEOUT);
     }
 
     private Packet receiveAndVerifySYN_ACK(int initialSequenceNumber) {
-        Packet packet = UDPConnection.receivePacket(clientSocket);
+        Packet packet;
+        do {
+            packet = UDPConnection.receivePacket(clientSocket);
+        } while(packet.getType() != PacketType.SYN_ACK.value);
 
-        UDPConnection.verifyPacketType(PacketType.SYN_ACK, packet, clientSocket);
+        SYN_ACKReceivedForHandshake = true;
         logger.info("Received a SYN_ACK packet");
 
         logger.info("Verifying ACK ...");
@@ -101,7 +110,7 @@ public class HttpClientLibrary {
         if (receivedAcknowledgment != initialSequenceNumber + 1) {
             logger.info("Unexpected ACK sequence number " + receivedAcknowledgment + "instead of " + (initialSequenceNumber + 1));
             UDPConnection.sendNAK(packet.getPeerPort(), packet.getPeerAddress(), clientSocket);
-            System.exit(-1);
+//            System.exit(-1);
         }
 
         logger.info("ACK is verified: {seq sent: " + initialSequenceNumber + ", seq received: " + receivedAcknowledgment + "}");
@@ -278,4 +287,40 @@ public class HttpClientLibrary {
         return array[0];
     }
 
+    private class ResendSyn extends TimerTask {
+        private int initialSequenceNumber;
+
+        ResendSyn(int initialSequenceNumber) {
+            this.initialSequenceNumber = initialSequenceNumber;
+        }
+
+        public void run() {
+            if (!SYN_ACKReceivedForHandshake) {
+                UDPConnection.sendSYN(initialSequenceNumber, request.getPort(), request.getAddress(), clientSocket);
+
+                // Start a timer
+                Timer timer = new Timer();
+                timer.schedule(new ResendSyn(initialSequenceNumber), UDPConnection.DELAY_BEFORE_TIMEOUT);
+            }
+        }
+    }
+
+//    private class ResendAck extends TimerTask {
+//        private Packet packetToResend;
+//
+//        ResendAck(Packet packetToResend) {
+//            this.packetToResend = packetToResend;
+//        }
+//
+//        public void run() {
+//            // check if syn_ack received b/c if yes, handshake didnt work properly
+//            if(UDPConnection.receivePacket(clientSocket).getType() == PacketType.SYN_ACK.value) {
+//                UDPConnection.sendACK(packetToResend.getSequenceNumber() + 1, packetToResend.getPeerPort(), packetToResend.getPeerAddress(), clientSocket);
+//
+//                // Start a timer
+//                Timer timer = new Timer();
+//                timer.schedule(new ResendAck(packetToResend), UDPConnection.DELAY_BEFORE_TIMEOUT);
+//            }
+//        }
+//    }
 }

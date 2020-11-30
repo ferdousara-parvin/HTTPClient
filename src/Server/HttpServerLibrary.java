@@ -1,11 +1,7 @@
 package Server;
-
-import Client.HttpClientLibrary;
 import Helpers.*;
 import Server.Responses.Response;
-
 import java.io.*;
-import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.file.Files;
@@ -33,6 +29,8 @@ class HttpServerLibrary {
     private final static String EOL = "\r\n";
 
     private static final Logger logger = Logger.getLogger(HttpServerLibrary.class.getName());
+
+    private boolean ACKReceivedForHandshake = false;
 
     HttpServerLibrary(boolean isVerbose, int port, Path baseDirectory) {
         this.port = port;
@@ -71,14 +69,21 @@ class HttpServerLibrary {
         UDPConnection.sendSYN_ACK(packetSYN.getSequenceNumber() + 1,
                 sequenceNumberToSynchronize, packetSYN.getPeerPort(), packetSYN.getPeerAddress(), serverSocket);
 
+        // Start a timer
+        Timer timer = new Timer();
+        timer.schedule(new ResendSynAck(sequenceNumberToSynchronize, packetSYN), UDPConnection.DELAY_BEFORE_TIMEOUT);
+
         // Receive ACK
         UDPConnection.receiveAndVerifyFinalACK(sequenceNumberToSynchronize, serverSocket);
+        ACKReceivedForHandshake = true;
     }
 
     private Packet receiveAndVerifySYN() {
-        Packet packet = UDPConnection.receivePacket(serverSocket);
+        Packet packet;
+        do {
+            packet = UDPConnection.receivePacket(serverSocket);
+        } while(packet.getType() != PacketType.SYN.value);
 
-        UDPConnection.verifyPacketType(PacketType.SYN, packet, serverSocket);
         logger.info("Received a SYN packet");
         return packet;
     }
@@ -277,5 +282,28 @@ class HttpServerLibrary {
         logger.log(Level.INFO, "Server closing connection...");
         serverSocket.close();
         System.exit(0);
+    }
+
+    private class ResendSynAck extends TimerTask {
+        private int sequenceNumberToSynchronize;
+        private Packet packetSYN;
+
+        ResendSynAck(int sequenceNumberToSynchronize, Packet packetSYN) {
+            this.sequenceNumberToSynchronize = sequenceNumberToSynchronize;
+            this.packetSYN = packetSYN;
+        }
+
+        public void run() {
+            if (!ACKReceivedForHandshake) {
+                UDPConnection.sendSYN_ACK(packetSYN.getSequenceNumber() + 1,
+                        sequenceNumberToSynchronize, packetSYN.getPeerPort(), packetSYN.getPeerAddress(), serverSocket);
+
+                ACKReceivedForHandshake = false;
+                // Start a timer
+                Timer timer = new Timer();
+                timer.schedule(new ResendSynAck(sequenceNumberToSynchronize, packetSYN), UDPConnection.DELAY_BEFORE_TIMEOUT);
+
+            }
+        }
     }
 }

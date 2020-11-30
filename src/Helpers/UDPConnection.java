@@ -1,5 +1,7 @@
 package Helpers;
 
+import Client.HttpClientLibrary;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.*;
@@ -11,7 +13,7 @@ public class UDPConnection {
     public final static int WINDOW_SIZE = 3;
     public final static int MAX_SEQUENCE_NUMBER =10000 * WINDOW_SIZE;
     public final static int MAX_PAYLOAD_SIZE = Packet.MAX_LEN - Packet.MIN_LEN;
-    public final static long DELAY_BEFORE_TIMEOUT = 100000;
+    public final static long DELAY_BEFORE_TIMEOUT = 10000;
     public final static SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 
     private static final Logger logger = Logger.getLogger(UDPConnection.class.getName());
@@ -27,6 +29,8 @@ public class UDPConnection {
     private static int rcv_tail = UDPConnection.WINDOW_SIZE - 1;
     private static ArrayList<Packet> finalPacketsInOrder = new ArrayList<>();
     private static ArrayList<Packet> packetsInBuffer = new ArrayList<>(MAX_SEQUENCE_NUMBER);
+
+    private static boolean ACKtoFINReceived = false;
 
     // -----------BUILD PACKETS---------------------
 
@@ -134,28 +138,32 @@ public class UDPConnection {
     }
 
     public static void receiveAndVerifyFinalACK(int sequenceNumberToSynchronize, DatagramSocket socket) {
-        Packet packetACK = UDPConnection.receivePacket(socket);
-        UDPConnection.verifyPacketType(PacketType.ACK, packetACK, socket);
+        Packet packetACK;
+        do {
+            packetACK = UDPConnection.receivePacket(socket);
+        } while(packetACK.getType() != PacketType.ACK.value);
+
+        ACKtoFINReceived = true;
 
         logger.info("Received a ACK packet");
         logger.info("Verifying ACK...");
         if (packetACK.getSequenceNumber() != sequenceNumberToSynchronize + 1) {
             logger.info("Unexpected ACK sequence number " + packetACK.getSequenceNumber() + "instead of " + (sequenceNumberToSynchronize + 1));
             UDPConnection.sendNAK(packetACK.getPeerPort(), packetACK.getPeerAddress(), socket);
-            System.exit(-1);
+//            System.exit(-1);
         }
         logger.info("ACK is verified: {seq sent: " + sequenceNumberToSynchronize + ", seq received: " + packetACK.getSequenceNumber() + "}");
     }
 
-    public static void verifyPacketType(PacketType expectedPacketType, Packet packet, DatagramSocket socket) {
-        if (packet.getType() != expectedPacketType.value) {
-            if (packet.getType() != PacketType.NAK.value) {
-                sendNAK(packet.getPeerPort(), packet.getPeerAddress(), socket);
-            }
-            socket.close();
-            System.exit(-1);
-        }
-    }
+//    public static void verifyPacketType(PacketType expectedPacketType, Packet packet, DatagramSocket socket) {
+//        if (packet.getType() != expectedPacketType.value) {
+//            if (packet.getType() != PacketType.NAK.value) {
+//                sendNAK(packet.getPeerPort(), packet.getPeerAddress(), socket);
+//            }
+////            socket.close();
+////            System.exit(-1);
+//        }
+//    }
 
     public static int getRandomSequenceNumber() {
         return (int) (Math.random() * 100) + 500;
@@ -196,7 +204,12 @@ public class UDPConnection {
 
         // Send FIN to let server know that client is done sending data
         int finalSequenceNumber = UDPConnection.getRandomSequenceNumber();
+        ACKtoFINReceived = false;
         sendFIN(finalSequenceNumber, peerPort, peerAddress, socket);
+
+        // Start a timer
+        Timer timer = new Timer();
+        timer.schedule(new ResendFin(finalSequenceNumber, peerPort, peerAddress, socket), UDPConnection.DELAY_BEFORE_TIMEOUT);
 
         // Wait for ACK from server
         receiveAndVerifyFinalACK(finalSequenceNumber, socket);
@@ -205,7 +218,7 @@ public class UDPConnection {
     }
 
     private static void sendWindow(ArrayList<Packet> packets, DatagramSocket socket) {
-        for (int i = windowHead; i <= windowTail && windowTail < ackList.size(); i++) {
+        for (int i = windowHead; i <= windowTail && i < ackList.size(); i++) {
             if (!ackList.get(i) && !sentList.get(i)) { // TODO: do we actually need ackList check here?
                 Packet packet = packets.get(i);
                 sendPacket(packets.get(i), socket);
@@ -243,10 +256,6 @@ public class UDPConnection {
         }
     }
 
-    // --------------SELECTIVE REPEAT------------------------------
-
-    // seq in [head -n, head - 1]
-
     private static boolean inRange(int number, int lowerBound, int upperBound) {
         return number >= lowerBound && number <= upperBound;
     }
@@ -262,11 +271,16 @@ public class UDPConnection {
         return inRange(sequenceNumber, rcv_base - WINDOW_SIZE, rcv_base - 1);
     }
 
+    // --------------SELECTIVE REPEAT------------------------------
 
     public static ArrayList<Packet> receiveAllPackets(DatagramSocket socket) {
+        // Setup
+        for(int i = 0; i < MAX_SEQUENCE_NUMBER; i++) {
+            packetsInBuffer.add(null);
+        }
+
         Packet receivedPacket = receivePacket(socket);
 
-        // TODO: handle null exception
         while (receivedPacket != null && receivedPacket.getType() != PacketType.FIN.value) {
             if (receivedPacket.getType() == PacketType.DATA.value) {
                 // Packet with sequence number b/w rcv_base and rcv_base+N-1 where N = window size
@@ -336,5 +350,29 @@ public class UDPConnection {
         rcv_tail = UDPConnection.WINDOW_SIZE - 1;
         finalPacketsInOrder = new ArrayList<>();
         packetsInBuffer = new ArrayList<>(MAX_SEQUENCE_NUMBER);
+    }
+
+    private static class ResendFin extends TimerTask {
+        private int finalSequenceNumber;
+        private DatagramSocket socket;
+        private InetAddress peerAddress;
+        private int peerPort;
+
+        ResendFin(int finalSequenceNumber, int peerPort, InetAddress peerAddress, DatagramSocket socket) {
+            this.finalSequenceNumber = finalSequenceNumber;
+            this.socket = socket;
+            this.peerAddress = peerAddress;
+            this.peerPort = peerPort;
+        }
+
+        public void run() {
+            if(!ACKtoFINReceived) {
+                sendFIN(finalSequenceNumber, peerPort, peerAddress, socket);
+
+                // Start a timer
+                Timer timer = new Timer();
+                timer.schedule(new ResendFin(finalSequenceNumber, peerPort, peerAddress, socket), UDPConnection.DELAY_BEFORE_TIMEOUT);
+            }
+        }
     }
 }
