@@ -2,6 +2,8 @@ package Client.Requests;
 
 import Helpers.HTTPMethod;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.List;
 
 /**
@@ -14,6 +16,7 @@ public abstract class Request {
     private HTTPMethod method;
     private List<String> headers;
     private int port;
+    private InetAddress ipAddress;
 
     Request(String host, String path, String query, HTTPMethod method, List<String> headers, int port) {
         this.host = host;
@@ -46,6 +49,11 @@ public abstract class Request {
 
     public int getPort() {
         return port;
+    }
+
+    public InetAddress getAddress() {
+        ipAddress = ipAddress == null ? new InetSocketAddress(host, port).getAddress() : new InetSocketAddress("localhost", port).getAddress();
+        return  ipAddress;
     }
 }
 
